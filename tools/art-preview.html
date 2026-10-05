@@ -1,0 +1,13 @@
+<!doctype html><meta charset="utf-8"><body style="margin:0;background:#cfcbc3">
+<canvas id="c" width="1600" height="900"></canvas>
+<script type="module">
+import { drawHero } from "../www/src/art/hero.js";
+const ctx = document.getElementById("c").getContext("2d");
+ctx.fillStyle="#cfcbc3";ctx.fillRect(0,0,1600,900);
+const poses=[["run",0],["run",1.5],["run",3],["jump",0],["fall",0],["dance",0.3],["hurt",0],["caught",0],["stand",0]];
+poses.forEach(([p,ph],i)=>{
+  const x=150+(i%5)*300, y=380+Math.floor(i/5)*440;
+  drawHero(ctx,{x,y,pose:p,phase:ph,t:ph,scale:2.4,whistle:i==2?1:0});
+});
+window.done=true;
+</script>

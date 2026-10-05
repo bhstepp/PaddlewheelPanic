@@ -1,0 +1,8 @@
+<!doctype html><meta charset="utf-8"><body style="margin:0;background:#171614">
+<canvas id="c" width="1280" height="720"></canvas>
+<script type="module">
+import { drawResult } from "../www/src/ui.js";
+const ctx = document.getElementById("c").getContext("2d");
+const r = { won: true, stars: 2, notes: 88, collected: 74, bonus: 14, totalNotes: 91, ratio: 74/91, clean: false, distanceFt: 1460, progress: 1, timeSec: 66.4 };
+drawResult(ctx, r, { stars: 2, notes: 88, timeSec: 66.4 }, true, 3);
+</script>

@@ -1,0 +1,38 @@
+<!doctype html><meta charset="utf-8"><body style="margin:0;background:#171614">
+<script type="module">
+// Draws the grayscale app icon with the game's own art code.
+import { drawHero } from "../www/src/art/hero.js";
+import { PALETTE as C } from "../www/src/art/palette.js";
+window.icon = (size) => {
+  const c = document.createElement("canvas");
+  c.width = c.height = size;
+  const ctx = c.getContext("2d");
+  const k = size / 512;
+  ctx.scale(k, k);
+  ctx.fillStyle = C.ink;
+  ctx.fillRect(0, 0, 512, 512);
+  // Iris spotlight.
+  const g = ctx.createRadialGradient(256, 250, 30, 256, 270, 230);
+  g.addColorStop(0, C.paper);
+  g.addColorStop(1, C.ash);
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(256, 270, 206, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.lineWidth = 12;
+  ctx.strokeStyle = C.paper;
+  ctx.stroke();
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(256, 270, 226, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(256, 270, 200, 0, Math.PI * 2);
+  ctx.clip();
+  drawHero(ctx, { x: 236, y: 500, pose: "jump", t: 0.4, scale: 2.7, shadow: false });
+  ctx.restore();
+  return c.toDataURL("image/png");
+};
+window.ready = true;
+</script>

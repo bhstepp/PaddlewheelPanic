@@ -1,0 +1,22 @@
+<!doctype html><meta charset="utf-8"><body style="margin:0;background:#171614">
+<canvas id="c" width="1280" height="720"></canvas>
+<script type="module">
+// Renders the world at a chosen spot for art review: ?x=8200&meter=60&t=1.5
+import { Game } from "../www/src/game.js";
+import { drawHUD, drawHint } from "../www/src/ui.js";
+import { drawFilm } from "../www/src/art/film.js";
+import leg1 from "../www/src/levels/leg1.js";
+const q = new URLSearchParams(location.search);
+const ctx = document.getElementById("c").getContext("2d");
+const g = new Game(leg1, { sfx(){}, haptic(){}, musicTime(){return 0}, win(){}, lose(){} });
+const x = +(q.get("x") || 300);
+const p = g.level.platforms.filter(p => p.type === "dock" && p.x <= x).pop();
+g.hero.x = x; g.hero.y = p.y; g.hero.ground = p; g.camX = x - 1280/3;
+g.meter = +(q.get("meter") || 20);
+const steps = Math.round(+(q.get("t") || 0.6) * 120);
+for (let i = 0; i < steps; i++) { g.setMusicTime(i/120); g.step(1/120, false); if (q.get("jump") && i === steps - 30) g.press(); if (q.get("whistle") && i === steps - 40) g.whistle(); }
+g.draw(ctx);
+drawHint(ctx, g.hint, true);
+drawHUD(ctx, g, {top:0,left:0,right:0,bottom:0});
+drawFilm(ctx, 1/60);
+</script>

@@ -106,10 +106,10 @@ export function drawTitle(ctx, t, beat, best) {
   ctx.fillStyle = C.charcoal;
   ctx.globalAlpha = 0.35;
   ctx.beginPath();
-  ctx.ellipse(W / 2, 524, 56, 8, 0, 0, TAU);
+  ctx.ellipse(W / 2, 532, 52, 8, 0, 0, TAU);
   ctx.fill();
   ctx.globalAlpha = 1;
-  drawHero(ctx, { x: W / 2 - 8, y: 524, pose: "dance", t, scale: 0.95, beat, shadow: false });
+  drawHero(ctx, { x: W / 2 - 8, y: 532, pose: "dance", t, scale: 0.86, beat, shadow: false });
   for (let i = 0; i < 3; i++) {
     const k = (t * 0.5 + i / 3) % 1;
     noteGlyph(ctx, W / 2 + (i - 1) * 130 + Math.sin(k * 6 + i) * 12, 500 - k * 150, 26, C.ink, C.paper);

@@ -3,6 +3,7 @@
 import { PALETTE as C, SERIF } from "./art/palette.js";
 import { TAU, roundRect, spacedText, star, noteGlyph } from "./art/draw.js";
 import { drawHero } from "./art/hero.js";
+import { drawBackground } from "./art/scenery.js";
 import { CONFIG } from "./config.js";
 
 const W = CONFIG.width;
@@ -92,29 +93,26 @@ export function drawTitle(ctx, t, beat, best) {
   divider(ctx, W / 2, 230, 240);
   spacedText(ctx, "Leg 1 · The Levee", W / 2, 272, 32, 2, { italic: true, weight: "normal" });
 
-  // An iris-lit stage with the hero dancing.
+  // An iris opening onto a miniature of the levee, with the hero dancing.
   ctx.save();
   ctx.beginPath();
   ctx.ellipse(W / 2, 440, 190, 108, 0, 0, TAU);
-  ctx.fillStyle = C.silver;
-  ctx.fill();
   ctx.clip();
-  const g = ctx.createRadialGradient(W / 2, 430, 20, W / 2, 440, 190);
-  g.addColorStop(0, C.paper);
-  g.addColorStop(1, C.ash);
-  ctx.fillStyle = g;
-  ctx.fillRect(W / 2 - 200, 320, 400, 240);
+  ctx.save();
+  ctx.translate(W / 2 - 200, 300);
+  ctx.scale(0.4, 0.4);
+  drawBackground(ctx, t * 60, { beat, time: t });
+  ctx.restore();
   ctx.fillStyle = C.charcoal;
-  ctx.globalAlpha = 0.25;
+  ctx.globalAlpha = 0.35;
   ctx.beginPath();
-  ctx.ellipse(W / 2, 512, 60, 9, 0, 0, TAU);
+  ctx.ellipse(W / 2, 524, 56, 8, 0, 0, TAU);
   ctx.fill();
   ctx.globalAlpha = 1;
-  drawHero(ctx, { x: W / 2 - 4, y: 512, pose: "dance", t, scale: 1.12, beat, shadow: false });
-  // Notes floating up around the dancer.
+  drawHero(ctx, { x: W / 2 - 8, y: 524, pose: "dance", t, scale: 0.95, beat, shadow: false });
   for (let i = 0; i < 3; i++) {
     const k = (t * 0.5 + i / 3) % 1;
-    noteGlyph(ctx, W / 2 + (i - 1) * 120 + Math.sin(k * 6 + i) * 12, 500 - k * 150, 26, C.ink, C.silver);
+    noteGlyph(ctx, W / 2 + (i - 1) * 130 + Math.sin(k * 6 + i) * 12, 500 - k * 150, 26, C.ink, C.paper);
   }
   ctx.restore();
   ctx.strokeStyle = C.paper;

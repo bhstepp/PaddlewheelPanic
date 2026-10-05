@@ -1,5 +1,5 @@
 // The hero: the 1928 riverboat deckhand mouse, drawn entirely with vector paths.
-// Only the 1928 public-domain design is used: pie-cut eyes, long snout,
+// Only the 1928 public-domain design is used: pie-cut eyes, round snout,
 // round ears, bare black hands (no gloves), button shorts, thin tail.
 // All hero drawing stays behind drawHero(ctx, state).
 import { PALETTE as C } from "./palette.js";
@@ -79,11 +79,11 @@ function buildRig(pose, ph, t, beat) {
     bodyY: 0,
     lean: 0.08,
     headTilt: 0,
-    head: { x: 5, y: -90 },
+    head: { x: 6, y: -108 },
     hipF: { x: 4, y: -36 },
     hipB: { x: -4, y: -36 },
-    shoulderF: { x: 4, y: -64 },
-    shoulderB: { x: -4, y: -64 },
+    shoulderF: { x: 5, y: -74 },
+    shoulderB: { x: -5, y: -74 },
   };
 
   if (pose === "run") {
@@ -184,10 +184,10 @@ function buildRig(pose, ph, t, beat) {
 
   r.hipF = { x: r.hipF.x, y: r.hipF.y + (pose === "dance" ? 0 : r.bodyY) };
   r.hipB = { x: r.hipB.x, y: r.hipB.y + (pose === "dance" ? 0 : r.bodyY) };
-  const sh = Math.sin(r.lean) * 28;
+  const sh = Math.sin(r.lean) * 36;
   r.shoulderF = { x: r.shoulderF.x + sh, y: r.shoulderF.y + r.bodyY };
   r.shoulderB = { x: r.shoulderB.x + sh, y: r.shoulderB.y + r.bodyY };
-  r.head = { x: r.head.x + Math.sin(r.lean) * 52, y: r.head.y + r.bodyY };
+  r.head = { x: r.head.x + Math.sin(r.lean) * 62, y: r.head.y + r.bodyY };
   return r;
 }
 
@@ -265,36 +265,42 @@ function drawTail(ctx, r, t) {
 }
 
 function drawBody(ctx) {
-  // Pear-shaped torso.
+  // Round, pear-shaped 1928 torso: narrow chest, full belly.
   ctx.fillStyle = C.ink;
   ctx.beginPath();
-  ctx.moveTo(0, -78);
-  ctx.bezierCurveTo(12, -78, 15, -58, 16, -46);
-  ctx.lineTo(-16, -46);
-  ctx.bezierCurveTo(-15, -58, -12, -78, 0, -78);
+  ctx.moveTo(0, -92);
+  ctx.bezierCurveTo(16, -92, 22, -72, 21, -56);
+  ctx.bezierCurveTo(21, -46, 14, -40, 0, -40);
+  ctx.bezierCurveTo(-14, -40, -21, -46, -21, -56);
+  ctx.bezierCurveTo(-22, -72, -16, -92, 0, -92);
   ctx.fill();
 
-  // Button shorts.
+  // Short pants with two big oval buttons on the front.
   ctx.fillStyle = C.charcoal;
   ctx.strokeStyle = C.ink;
   ctx.lineWidth = 3;
   ctx.beginPath();
-  ctx.moveTo(-17, -50);
-  ctx.bezierCurveTo(-8, -54, 8, -54, 17, -50);
-  ctx.bezierCurveTo(21, -40, 18, -32, 12, -31);
-  ctx.quadraticCurveTo(0, -33, -12, -31);
-  ctx.bezierCurveTo(-18, -32, -21, -40, -17, -50);
+  ctx.moveTo(-21, -58);
+  ctx.bezierCurveTo(-10, -63, 10, -63, 21, -58);
+  ctx.bezierCurveTo(25, -46, 22, -36, 16, -34);
+  ctx.quadraticCurveTo(8, -37, 2, -36);
+  ctx.quadraticCurveTo(-6, -37, -15, -34);
+  ctx.bezierCurveTo(-22, -36, -25, -46, -21, -58);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
+  // Leg-hole crease.
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(2, -36);
+  ctx.lineTo(2, -42);
+  ctx.stroke();
 
-  // Two big buttons on the front.
   ctx.fillStyle = C.paper;
-  ctx.strokeStyle = C.ink;
-  ctx.lineWidth = 1.6;
-  for (const [bx, by] of [[5, -44], [12.5, -43]]) {
+  ctx.lineWidth = 1.8;
+  for (const [bx, by] of [[6, -51], [15, -50]]) {
     ctx.beginPath();
-    ctx.ellipse(bx, by, 2.6, 3.6, 0.15, 0, TAU);
+    ctx.ellipse(bx, by, 3.4, 4.8, 0.12, 0, TAU);
     ctx.fill();
     ctx.stroke();
   }
@@ -319,109 +325,110 @@ function drawHead(ctx, s, pose, t) {
   const hurt = pose === "hurt" || pose === "caught";
 
   ctx.fillStyle = C.ink;
-  // Ears: two round black discs.
+  // Big round ears set toward the back of the head.
   ctx.beginPath();
-  ctx.arc(-13, -21, 12.5, 0, TAU);
+  ctx.arc(-18, -24, 16, 0, TAU);
   ctx.fill();
   ctx.beginPath();
-  ctx.arc(9, -26, 12.5, 0, TAU);
+  ctx.arc(11, -31, 16, 0, TAU);
   ctx.fill();
   // Cranium.
   ctx.beginPath();
-  ctx.arc(0, 0, 20, 0, TAU);
+  ctx.arc(0, 0, 25, 0, TAU);
   ctx.fill();
 
   // Face mask: stroke first, then fill, so only the outer outline shows.
   const mask = new Path2D();
-  mask.moveTo(-5, 12);
-  mask.bezierCurveTo(-7, 4, -4, -2, 0, -5);
-  mask.bezierCurveTo(1, -13, 6, -17, 9, -11);   // over the near eye
-  mask.bezierCurveTo(11, -17, 17, -17, 18, -10); // over the far eye
-  mask.bezierCurveTo(20, -7, 24, -6, 30, -6);    // forehead to snout bridge
-  mask.bezierCurveTo(36, -6, 39, -7, 41, -6);    // top of the long snout
-  mask.bezierCurveTo(45, -1, 43, 4, 37, 4);      // snout tip under the nose
-  mask.bezierCurveTo(30, 5, 28, 8, 26, 10);      // under the snout
-  mask.bezierCurveTo(22, 16, 10, 18, 2, 16);     // chin and jaw
-  mask.bezierCurveTo(-2, 15, -4, 14, -5, 12);
+  mask.moveTo(-6, 18);
+  mask.bezierCurveTo(-12, 12, -12, 2, -7, -3);    // full back cheek
+  mask.bezierCurveTo(-5, -14, 1, -22, 6, -20);    // up over the near eye
+  mask.bezierCurveTo(9, -19, 10, -16, 10.5, -12);
+  mask.bezierCurveTo(12, -19, 16, -22, 20, -20);  // widow's peak, over the far eye
+  mask.bezierCurveTo(24, -18, 25, -12, 25, -8);
+  mask.bezierCurveTo(30, -6, 38, -7, 44, -10);    // snout bridge rising to the nose
+  mask.bezierCurveTo(52, -6, 52, 6, 45, 8);       // round snout tip
+  mask.bezierCurveTo(40, 10, 35, 11, 32, 13);     // upper lip
+  mask.bezierCurveTo(31, 24, 14, 29, 2, 25);      // chin
+  mask.bezierCurveTo(-2, 23, -5, 21, -6, 18);
   mask.closePath();
   ctx.strokeStyle = C.ink;
-  ctx.lineWidth = 3.5;
+  ctx.lineWidth = 4;
   ctx.stroke(mask);
   ctx.fillStyle = C.paper;
   ctx.fill(mask);
 
-  // Eyes.
+  // Eyes: tall ovals with the 1928 pie cut.
   if (hurt) {
     ctx.strokeStyle = C.ink;
-    ctx.lineWidth = 2;
-    for (const [ex, ey] of [[5, -6], [13.5, -6]]) {
+    ctx.lineWidth = 2.2;
+    for (const [ex, ey] of [[4.5, -8], [16.5, -8]]) {
       ctx.beginPath();
-      ctx.ellipse(ex, ey, 3.4, 6.5, 0, 0, TAU);
+      ctx.ellipse(ex, ey, 4.2, 8, 0, 0, TAU);
       ctx.stroke();
       ctx.fillStyle = C.ink;
       ctx.beginPath();
-      ctx.arc(ex + 0.8, ey + 1, 1.6, 0, TAU);
+      ctx.arc(ex + 1, ey + 1.5, 2, 0, TAU);
       ctx.fill();
     }
   } else {
     const blink = ((t * 0.7 + 1.3) % 3.1) < 0.09;
     if (blink) {
       ctx.strokeStyle = C.ink;
-      ctx.lineWidth = 2.2;
+      ctx.lineWidth = 2.4;
       ctx.beginPath();
-      ctx.moveTo(2, -5); ctx.quadraticCurveTo(5, -3, 8, -5);
-      ctx.moveTo(11, -5); ctx.quadraticCurveTo(14, -3, 16.5, -5);
+      ctx.moveTo(1, -6); ctx.quadraticCurveTo(4.5, -3, 8, -6);
+      ctx.moveTo(13, -6); ctx.quadraticCurveTo(16.5, -3, 20, -6);
       ctx.stroke();
     } else {
-      pieEye(ctx, 5, -6.5, 3.6, 7, 1);
-      pieEye(ctx, 13.6, -6.5, 3.2, 6.6, 1);
+      pieEye(ctx, 4.5, -8.5, 4.6, 9, 1);
+      pieEye(ctx, 16.5, -8.5, 4.2, 8.6, 1);
     }
   }
 
   // Mouth.
   ctx.strokeStyle = C.ink;
   ctx.fillStyle = C.ink;
-  ctx.lineWidth = 2.4;
+  ctx.lineWidth = 2.6;
   if (whistle > 0) {
     // Puckered whistle with a puffed cheek.
     ctx.beginPath();
-    ctx.ellipse(33, 8.5, 3.2, 2.6, 0, 0, TAU);
+    ctx.ellipse(38, 12, 3.6, 3, 0, 0, TAU);
     ctx.fill();
     ctx.beginPath();
-    ctx.arc(22, 7, 6, 0.4, 2.2);
+    ctx.arc(24, 12, 7, 0.4, 2.2);
     ctx.stroke();
   } else if (hurt) {
     ctx.beginPath();
-    ctx.ellipse(28, 9, 5, 4.5, 0, 0, TAU);
+    ctx.ellipse(31, 14, 6, 5.5, 0, 0, TAU);
     ctx.fill();
   } else if (pose === "jump" || pose === "dance") {
-    // Big open grin.
+    // Big open grin with a tongue.
     ctx.beginPath();
-    ctx.moveTo(37, 4.5);
-    ctx.bezierCurveTo(33, 17, 20, 18, 12, 6);
-    ctx.bezierCurveTo(20, 10, 30, 8, 37, 4.5);
+    ctx.moveTo(44, 9);
+    ctx.bezierCurveTo(39, 25, 17, 27, 9, 8);
+    ctx.bezierCurveTo(19, 13, 32, 12, 42, 7);
     ctx.fill();
     ctx.fillStyle = C.slate;
     ctx.beginPath();
-    ctx.ellipse(24, 12.5, 4.5, 2, -0.1, 0, TAU);
+    ctx.ellipse(25, 18.5, 6, 2.6, -0.1, 0, TAU);
     ctx.fill();
   } else {
-    // Long easy smile with a cheek dimple.
+    // Long, easy smile curling up into the cheek.
     ctx.beginPath();
-    ctx.moveTo(37, 4.5);
-    ctx.bezierCurveTo(32, 12, 20, 12, 13, 7);
-    ctx.moveTo(14.5, 9.5);
-    ctx.quadraticCurveTo(12, 6, 13.5, 3.5);
+    ctx.moveTo(44, 9);
+    ctx.bezierCurveTo(36, 17, 20, 17, 10, 9);
+    ctx.moveTo(12, 13);
+    ctx.quadraticCurveTo(8, 9, 10, 4);
     ctx.stroke();
   }
 
-  // Bulb nose at the end of the snout.
+  // Big bulb nose on the end of the snout.
   ctx.fillStyle = C.ink;
   ctx.beginPath();
-  ctx.ellipse(42.5, -5, 6.2, 4.6, -0.3, 0, TAU);
+  ctx.ellipse(49, -7, 9.5, 7, -0.3, 0, TAU);
   ctx.fill();
   ctx.fillStyle = C.paper;
   ctx.beginPath();
-  ctx.ellipse(41.5, -7.2, 1.8, 1.1, -0.3, 0, TAU);
+  ctx.ellipse(47, -10.5, 2.8, 1.6, -0.3, 0, TAU);
   ctx.fill();
 }

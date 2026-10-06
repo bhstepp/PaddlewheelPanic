@@ -6,7 +6,7 @@ export default {
   chunks: [
     ["start"],
     ["warmup", 0.4],
-    ["hint", 0, { text: "GHOSTS CAN'T BE STOMPED. SWIPE UP TO SPOOK THEM", desktop: "GHOSTS CAN'T BE STOMPED. PRESS W TO SPOOK THEM" }],
+    ["hint", 0, { text: "SWIPE UP TO SPOOK THE GHOSTS", desktop: "PRESS W TO SPOOK THE GHOSTS" }],
     ["ghostHall", 0.2],
     ["hookSwing", 0.4],
     ["crumbleRun", 0.5],

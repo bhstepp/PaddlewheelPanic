@@ -258,8 +258,12 @@ export function drawHint(ctx, hintState, coarse) {
   const text = coarse ? hintState.hint.text : hintState.hint.desktop;
   ctx.save();
   ctx.globalAlpha = a;
+  // Long hints shrink to fit the screen.
   ctx.font = `bold 30px ${SERIF}`;
-  const tw = ctx.measureText(text).width + text.length * 4;
+  const full = ctx.measureText(text).width + text.length * 4;
+  const k = Math.min(1, (W - 200) / full);
+  const size = 30 * k;
+  const tw = full * k;
   const w = tw + 110;
   const x = W / 2 - w / 2;
   const y = 120;
@@ -274,7 +278,7 @@ export function drawHint(ctx, hintState, coarse) {
   ctx.stroke();
   diamond(ctx, x + 30, y + 38, 6);
   diamond(ctx, x + w - 30, y + 38, 6);
-  spacedText(ctx, text, W / 2, y + 40, 30, 4);
+  spacedText(ctx, text, W / 2, y + 40, size, 4 * k);
   ctx.restore();
 }
 

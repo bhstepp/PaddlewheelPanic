@@ -6,7 +6,7 @@ export default {
   chunks: [
     ["start"],
     ["warmup", 0.4],
-    ["hint", 0, { text: "BOUNCE ON BALLOONS. HOLD FOR EXTRA HEIGHT", desktop: "BOUNCE ON BALLOONS. HOLD SPACE FOR EXTRA HEIGHT" }],
+    ["hint", 0, { text: "HOLD AS YOU BOUNCE TO GO HIGHER", desktop: "HOLD SPACE ON A BOUNCE TO GO HIGHER" }],
     ["balloonHop", 0.2],
     ["springWall", 0.5],
     ["beatSteps", 0.5],

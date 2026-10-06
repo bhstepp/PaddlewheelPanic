@@ -6,7 +6,7 @@ export default {
   chunks: [
     ["start"],
     ["warmup", 0.2],
-    ["hint", 0, { text: "NEAR A HOOK, KEEP HOLDING TO GRAB. LET GO TO FLING", desktop: "NEAR A HOOK, KEEP HOLDING SPACE TO GRAB. LET GO TO FLING" }],
+    ["hint", 0, { text: "HOLD TO GRAB A HOOK, LET GO TO FLING", desktop: "HOLD SPACE TO GRAB, LET GO TO FLING" }],
     ["hookSwing", 0.1],
     ["crateSteps", 0.3],
     ["hint", 0, { text: "CRUMBLY LEDGES: KEEP MOVING!" }],

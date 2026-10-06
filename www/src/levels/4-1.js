@@ -6,7 +6,7 @@ export default {
   chunks: [
     ["start"],
     ["warmup", 0.4],
-    ["hint", 0, { text: "STEPS BLINK OUT AT THE END OF EACH BAR. BE IN THE AIR!" }],
+    ["hint", 0, { text: "BE IN THE AIR WHEN THE STEPS BLINK" }],
     ["beatSteps", 0.2],
     ["crateSteps", 0.5],
     ["beatSteps", 0.4],

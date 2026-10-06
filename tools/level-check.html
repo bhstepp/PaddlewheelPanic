@@ -1,0 +1,40 @@
+<!doctype html><meta charset="utf-8"><title>Level check</title>
+<body style="margin:24px;background:#f8f6f0;color:#171614;font:15px/1.5 Georgia,serif">
+<h1 style="font-size:22px">Level check</h1>
+<p>The planning bot plays every level (and a week of daily matinees). Each should be won.</p>
+<pre id="out">Running…</pre>
+<script type="module">
+// ?levels=2-1,2-2 to check only some levels; ?daily=0 to skip the matinees.
+import { runBot } from "./bot.js";
+import { LEVELS } from "../www/src/levels/index.js";
+import { ZONES } from "../www/src/zones/index.js";
+import { dailyCourse } from "../www/src/screens/daily.js";
+const q = new URLSearchParams(location.search);
+const out = document.getElementById("out");
+const ids = q.get("levels") ? q.get("levels").split(",") : Object.keys(LEVELS);
+const lines = [];
+let failed = 0;
+const show = () => (out.textContent = lines.join("\n"));
+for (const id of ids) {
+  const r = await runBot(id);
+  if (!r.won) failed++;
+  lines.push(`${r.won ? "ok  " : "FAIL"} ${id.padEnd(6)} ${JSON.stringify(r)}`);
+  show();
+}
+if (q.get("daily") !== "0") {
+  for (let d = 0; d < 7; d++) {
+    const day = new Date(Date.now() + d * 86400000);
+    const key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
+    for (let zi = 0; zi < ZONES.length; zi++) {
+      const c = dailyCourse(key, [zi]);
+      const r = await runBot(c.def, { zone: c.zone.id });
+      if (!r.won) failed++;
+      lines.push(`${r.won ? "ok  " : "FAIL"} daily ${key} ${c.zone.id.padEnd(9)} ${JSON.stringify(r)}`);
+      show();
+    }
+  }
+}
+lines.push("", failed ? `${failed} FAILED` : "ALL PASSED");
+show();
+window.done = { failed };
+</script>

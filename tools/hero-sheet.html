@@ -1,0 +1,19 @@
+<!doctype html><meta charset="utf-8"><body style="margin:0;background:#cfcbc3">
+<canvas id="c" width="1600" height="900"></canvas>
+<script type="module">
+// Hero review sheet: a big close-up plus eight frames of the run cycle with a
+// ground line, so foot planting and direction are easy to judge.
+import { drawHero } from "../www/src/art/hero.js";
+const ctx = document.getElementById("c").getContext("2d");
+ctx.fillStyle = "#cfcbc3"; ctx.fillRect(0, 0, 1600, 900);
+drawHero(ctx, { x: 260, y: 500, pose: "jump", t: 0.4, scale: 3.3, shadow: false });
+drawHero(ctx, { x: 640, y: 500, pose: "stand", t: 0.4, scale: 2.4 });
+drawHero(ctx, { x: 960, y: 500, pose: "fall", t: 0.2, scale: 2.4, whistle: 1 });
+drawHero(ctx, { x: 1300, y: 500, pose: "hurt", t: 0.2, scale: 2.4 });
+ctx.strokeStyle = "#5c5955"; ctx.lineWidth = 2;
+ctx.beginPath(); ctx.moveTo(0, 860); ctx.lineTo(1600, 860); ctx.stroke();
+for (let i = 0; i < 8; i++) {
+  drawHero(ctx, { x: 110 + i * 190, y: 860, pose: "run", phase: (i / 8) * Math.PI * 2, t: 0.4, scale: 1.75 });
+  ctx.fillStyle = "#171614"; ctx.font = "16px Georgia"; ctx.fillText(String(i + 1), 100 + i * 190, 890);
+}
+</script>

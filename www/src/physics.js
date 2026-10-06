@@ -94,7 +94,7 @@ export function stepHero(h, dt, held, platforms, landingX, events) {
       h.blocked = true;
     }
   }
-  if (h.ground) h.phase += (dt * h.speed) / 20;
+  if (h.ground) h.phase += dt * h.speed * CONFIG.strideRate;
 
   // Jump (buffered, with coyote time).
   if (h.buffer > 0 && (h.ground || h.coyote > 0) && h.state === "run") {

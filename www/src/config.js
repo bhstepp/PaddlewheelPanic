@@ -22,6 +22,7 @@ export const CONFIG = {
   heroHalfWidth: 16,
   heroHeight: 82,
   heroScale: 0.9,
+  strideRate: 1 / 11.5, // run-cycle radians per pixel, so planted feet don't skate
 
   // Jumping.
   gravity: 2400,

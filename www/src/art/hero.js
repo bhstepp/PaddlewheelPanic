@@ -43,32 +43,42 @@ export function drawHero(ctx, s) {
     ctx.globalAlpha = 1;
   }
 
+  // Longer legs: everything above the hips is lifted by LEG.
+  const LEG = 12;
+  const up = (fn) => {
+    ctx.save();
+    ctx.translate(0, -LEG);
+    fn();
+    ctx.restore();
+  };
+  const hipF = { x: rig.hipF.x, y: rig.hipF.y - LEG };
+  const hipB = { x: rig.hipB.x, y: rig.hipB.y - LEG };
+
   // Back limbs first.
-  drawLeg(ctx, rig.hipB, rig.footB, rig.kneeB);
-  drawArm(ctx, rig.shoulderB, rig.handB, rig.elbowB);
-  drawTail(ctx, rig, t);
+  drawLeg(ctx, hipB, rig.footB, rig.kneeB);
+  up(() => {
+    drawArm(ctx, rig.shoulderB, rig.handB, rig.elbowB);
+    drawTail(ctx, rig, t);
+    ctx.save();
+    ctx.translate(0, rig.bodyY);
+    ctx.rotate(rig.lean);
+    drawBody(ctx);
+    ctx.restore();
+  });
 
-  // Body.
-  ctx.save();
-  ctx.translate(0, rig.bodyY);
-  ctx.rotate(rig.lean);
-  drawBody(ctx);
-  ctx.restore();
-
-  drawLeg(ctx, rig.hipF, rig.footF, rig.kneeF);
+  drawLeg(ctx, hipF, rig.footF, rig.kneeF);
 
   // A raised front arm tucks behind the head so it never covers the face.
   const armUp = rig.handF.y < rig.shoulderF.y - 20;
-  if (armUp) drawArm(ctx, rig.shoulderF, rig.handF, rig.elbowF);
-
-  // Head.
-  ctx.save();
-  ctx.translate(rig.head.x, rig.head.y);
-  ctx.rotate(rig.headTilt);
-  drawHead(ctx, s, pose, t);
-  ctx.restore();
-
-  if (!armUp) drawArm(ctx, rig.shoulderF, rig.handF, rig.elbowF);
+  up(() => {
+    if (armUp) drawArm(ctx, rig.shoulderF, rig.handF, rig.elbowF);
+    ctx.save();
+    ctx.translate(rig.head.x, rig.head.y);
+    ctx.rotate(rig.headTilt);
+    drawHead(ctx, s, pose, t);
+    ctx.restore();
+    if (!armUp) drawArm(ctx, rig.shoulderF, rig.handF, rig.elbowF);
+  });
 
   ctx.restore();
 }
@@ -92,15 +102,17 @@ function buildRig(pose, ph, t, beat) {
     r.bodyY = bob;
     r.lean = 0.12;
     r.headTilt = 0.06 + Math.sin(ph * 2) * 0.03;
+    // Each foot plants and slides back while it's on the ground (cos < 0),
+    // then lifts and swings forward (cos > 0). Knees bow forward, never back.
     const leg = (a) => {
-      const fx = Math.sin(a) * 22 + 2;
-      const lift = Math.max(0, -Math.cos(a));
-      return { x: fx, y: -lift * 18 };
+      const lift = Math.max(0, Math.cos(a));
+      return { x: Math.sin(a) * 20 + 3, y: -lift * 16 };
     };
+    const knee = (a) => ({ x: 6 + Math.max(0, Math.cos(a)) * 7, y: -2 });
     r.footF = leg(ph);
     r.footB = leg(ph + Math.PI);
-    r.kneeF = { x: -10 - Math.cos(ph) * 4, y: 0 };
-    r.kneeB = { x: -10 + Math.cos(ph) * 4, y: 0 };
+    r.kneeF = knee(ph);
+    r.kneeB = knee(ph + Math.PI);
     // Arms swing opposite to legs, bending like hoses.
     r.handF = { x: 4 - Math.sin(ph) * 26, y: -46 - Math.cos(ph) * 6 + bob };
     r.handB = { x: -4 + Math.sin(ph) * 24, y: -48 + Math.cos(ph) * 6 + bob };
@@ -207,10 +219,11 @@ function hose(ctx, a, b, bend, width) {
 }
 
 function drawLeg(ctx, hip, foot, knee) {
-  hose(ctx, hip, { x: foot.x, y: foot.y - 7 }, knee, 5);
+  hose(ctx, hip, { x: foot.x, y: foot.y - 9 }, knee, 5);
   // Big, rounded light shoe with a dark outline and an ankle cuff.
   ctx.save();
-  ctx.translate(foot.x + 7, foot.y - 7);
+  ctx.translate(foot.x + 7, foot.y - 8);
+  ctx.scale(1.3, 1.3);
   ctx.fillStyle = C.paper;
   ctx.strokeStyle = C.ink;
   ctx.lineWidth = 3;
@@ -336,146 +349,162 @@ function drawHead(ctx, s, pose, t) {
   const hurt = pose === "hurt" || pose === "caught";
 
   ctx.fillStyle = C.ink;
-  // Big round ears set on the back of the head.
+  // Big round ears: one at the back of the head, one on top behind the cap.
   ctx.beginPath();
-  ctx.arc(-27, -8, 15.5, 0, TAU);
+  ctx.arc(-28, -4, 17, 0, TAU);
   ctx.fill();
   ctx.beginPath();
-  ctx.arc(-7, -31, 15.5, 0, TAU);
+  ctx.arc(-6, -33, 17, 0, TAU);
   ctx.fill();
   // Cranium.
   ctx.beginPath();
-  ctx.arc(0, 0, 25, 0, TAU);
+  ctx.arc(0, 0, 26, 0, TAU);
   ctx.fill();
 
-  // Face mask: stroke first, then fill, so only the outer outline shows.
+  // Face mask in 3/4 view: high over the eyes, a short upturned snout,
+  // a full round cheek and chin. Stroke first, then fill, so only the
+  // outer silhouette is inked.
   const mask = new Path2D();
-  mask.moveTo(-4, 16);
-  mask.bezierCurveTo(-10, 10, -9, 0, -4, -5);     // back of the cheek
-  mask.bezierCurveTo(-2, -16, 6, -23, 10, -17);   // over the near eye
-  mask.bezierCurveTo(13, -23, 21, -24, 23, -16);  // over the far eye
-  mask.bezierCurveTo(25, -12, 28, -12, 31, -14);  // bridge, snout angled upward
-  mask.bezierCurveTo(34, -17, 37, -20, 41, -21);  // top of the short snout
-  mask.bezierCurveTo(49, -21, 50, -8, 42, -6);    // round snout tip
-  mask.bezierCurveTo(38, -5, 37, -2, 37, 1);      // under the nose
-  mask.bezierCurveTo(37, 16, 26, 26, 12, 25);     // jaw and chin
-  mask.bezierCurveTo(4, 24, -1, 21, -4, 16);
+  mask.moveTo(0, 23);
+  mask.bezierCurveTo(-7, 17, -9, 5, -6, -4);      // back of the cheek
+  mask.bezierCurveTo(-4, -15, 2, -24, 9, -24);    // up and over the near eye
+  mask.bezierCurveTo(14, -24, 16, -20, 16.5, -18);// dip between the eyes
+  mask.bezierCurveTo(18, -25, 26, -27, 29, -20);  // over the far eye
+  mask.bezierCurveTo(31, -16, 35, -16, 40, -19);  // bridge, tilting up
+  mask.bezierCurveTo(46, -22, 54, -18, 53, -12);  // round tip under the nose
+  mask.bezierCurveTo(52, -7, 47, -5, 42, -5);     // underside of the snout
+  mask.bezierCurveTo(45, 6, 41, 22, 28, 26);      // jaw in front of the mouth
+  mask.bezierCurveTo(18, 30, 6, 28, 0, 23);       // round chin
   mask.closePath();
   ctx.strokeStyle = C.ink;
-  ctx.lineWidth = 4;
+  ctx.lineWidth = 4.2;
   ctx.stroke(mask);
   ctx.fillStyle = C.paper;
   ctx.fill(mask);
 
-  // Eyes: tall ovals with the 1928 pie cut, set high and close together.
+  // Eyes: tall ovals set high and close, with a small pie-cut notch.
   if (hurt) {
     ctx.strokeStyle = C.ink;
     ctx.lineWidth = 2.2;
-    for (const [ex, ey] of [[8, -10], [19, -11]]) {
+    for (const [ex, ey, rx, ry] of [[9.5, -11, 4.8, 9.5], [22, -12, 4.3, 9]]) {
       ctx.beginPath();
-      ctx.ellipse(ex, ey, 4.2, 8, 0, 0, TAU);
+      ctx.ellipse(ex, ey, rx, ry, 0, 0, TAU);
       ctx.stroke();
       ctx.fillStyle = C.ink;
       ctx.beginPath();
-      ctx.arc(ex + 1, ey + 1.5, 2, 0, TAU);
+      ctx.arc(ex + 1, ey + 2, 2.2, 0, TAU);
       ctx.fill();
     }
   } else {
     const blink = ((t * 0.7 + 1.3) % 3.1) < 0.09;
     if (blink) {
       ctx.strokeStyle = C.ink;
-      ctx.lineWidth = 2.4;
+      ctx.lineWidth = 2.6;
       ctx.beginPath();
-      ctx.moveTo(4, -8); ctx.quadraticCurveTo(8, -5, 12, -8);
-      ctx.moveTo(15.5, -9); ctx.quadraticCurveTo(19, -6, 22.5, -9);
+      ctx.moveTo(5, -9); ctx.quadraticCurveTo(9.5, -5, 14, -9);
+      ctx.moveTo(18, -10); ctx.quadraticCurveTo(22, -6, 26, -10);
       ctx.stroke();
     } else {
-      pieEye(ctx, 8, -10, 4.4, 8.8, 1);
-      pieEye(ctx, 19, -11, 4, 8.4, 1);
+      pieEye(ctx, 9.5, -11, 4.9, 9.6, 1);
+      pieEye(ctx, 22, -12, 4.4, 9.1, 1);
     }
   }
 
-  // Mouth.
+  // Mouth and cheek.
   ctx.strokeStyle = C.ink;
   ctx.fillStyle = C.ink;
-  ctx.lineWidth = 2.6;
-  if (whistle > 0) {
-    // Puckered whistle with a puffed cheek.
+  ctx.lineWidth = 2.8;
+  const cheek = () => {
+    // The smile line curls up and around a round, puffed cheek.
     ctx.beginPath();
-    ctx.ellipse(36, 6, 3.8, 3.2, 0, 0, TAU);
+    ctx.arc(6, 11, 7.5, 0.1, -2.9, true);
+    ctx.stroke();
+  };
+  if (whistle > 0) {
+    // Puckered lips under the snout and a puffed-out cheek.
+    ctx.beginPath();
+    ctx.ellipse(40, 3, 4.2, 3.6, 0, 0, TAU);
     ctx.fill();
     ctx.beginPath();
-    ctx.arc(22, 8, 7, 0.3, 2.2);
+    ctx.arc(16, 6, 10, 0.2, 2.4);
     ctx.stroke();
   } else if (hurt) {
     ctx.beginPath();
-    ctx.ellipse(31, 10, 6, 6.5, 0, 0, TAU);
+    ctx.ellipse(30, 10, 7, 8, 0, 0, TAU);
     ctx.fill();
   } else if (pose === "stand") {
-    // Wide smile curling into a round cheek.
+    // Closed, easy smile.
     ctx.beginPath();
-    ctx.moveTo(38, 1);
-    ctx.bezierCurveTo(36, 14, 20, 16, 11, 7);
+    ctx.moveTo(42, -4);
+    ctx.bezierCurveTo(38, 10, 22, 14, 12, 8);
     ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(9, 4, 6, 0.6, 3.6);
-    ctx.stroke();
+    cheek();
   } else {
-    // Big open grin with a tongue, as in the 1928 film.
+    // The big open grin from the 1928 film: deep mouth with a tongue.
+    const mouth = new Path2D();
+    mouth.moveTo(42, -4);
+    mouth.bezierCurveTo(42, 14, 32, 22, 24, 21);
+    mouth.bezierCurveTo(17, 20, 13, 13, 12, 8);
+    mouth.bezierCurveTo(22, 9, 34, 5, 42, -4);
+    mouth.closePath();
+    ctx.fill(mouth);
+    ctx.save();
+    ctx.clip(mouth);
+    ctx.fillStyle = C.ash;
     ctx.beginPath();
-    ctx.moveTo(38, 1);
-    ctx.bezierCurveTo(37, 22, 18, 26, 11, 7);
-    ctx.bezierCurveTo(20, 10, 31, 8, 38, 1);
+    ctx.ellipse(26, 20, 9, 5, -0.15, 0, TAU);
     ctx.fill();
-    ctx.fillStyle = C.silver;
+    ctx.strokeStyle = C.ink;
+    ctx.lineWidth = 1.2;
     ctx.beginPath();
-    ctx.ellipse(25, 16.5, 7, 3.2, -0.15, 0, TAU);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(9, 4, 6, 0.6, 3.6);
+    ctx.moveTo(26, 16);
+    ctx.lineTo(27, 21);
     ctx.stroke();
+    ctx.restore();
+    ctx.lineWidth = 2.6;
+    ctx.stroke(mouth);
+    cheek();
   }
 
-  // Big oval nose on the end of the snout.
+  // Big horizontal oval nose on the end of the snout.
   ctx.fillStyle = C.ink;
   ctx.beginPath();
-  ctx.ellipse(44, -16, 9.5, 7.5, -0.45, 0, TAU);
+  ctx.ellipse(49, -20, 10, 7.2, -0.25, 0, TAU);
   ctx.fill();
   ctx.fillStyle = C.paper;
   ctx.beginPath();
-  ctx.ellipse(42, -19.5, 2.8, 1.6, -0.45, 0, TAU);
+  ctx.ellipse(46.5, -23, 3, 1.6, -0.25, 0, TAU);
   ctx.fill();
 
-  // Tall pilot's cap, tipped back on the head.
+  // Tall white pilot's cap tipped back, with a dark crown and short brim.
   ctx.save();
-  ctx.translate(-2, -22);
-  ctx.rotate(-0.38);
+  ctx.translate(-4, -23);
+  ctx.rotate(-0.32);
   ctx.strokeStyle = C.ink;
   ctx.lineWidth = 3;
-  ctx.fillStyle = C.paper;
   const cap = new Path2D();
-  cap.moveTo(-11, 0);
-  cap.lineTo(-10, -34);
-  cap.quadraticCurveTo(0, -38, 10, -34);
-  cap.lineTo(11, 0);
+  cap.moveTo(-12, 0);
+  cap.lineTo(-10, -36);
+  cap.quadraticCurveTo(1, -40, 11, -36);
+  cap.lineTo(12, 0);
   cap.closePath();
+  ctx.fillStyle = C.paper;
   ctx.fill(cap);
   ctx.save();
   ctx.clip(cap);
   ctx.fillStyle = C.silver;
-  ctx.fillRect(4, -40, 10, 42);
+  ctx.fillRect(5, -42, 10, 44);
   ctx.restore();
   ctx.stroke(cap);
-  // Dark crown on top and a dark band with a short brim.
   ctx.fillStyle = C.ink;
   ctx.beginPath();
-  ctx.ellipse(0, -35, 11.5, 5, 0, 0, TAU);
+  ctx.ellipse(0.5, -37, 12, 5.5, 0, 0, TAU);
   ctx.fill();
   ctx.beginPath();
-  ctx.ellipse(0, 0, 13, 4.5, 0, 0, TAU);
+  ctx.ellipse(0, -1, 13.5, 4.5, 0, 0, TAU);
   ctx.fill();
   ctx.beginPath();
-  ctx.ellipse(12, 1, 8, 3, 0.15, 0, TAU);
+  ctx.ellipse(13, 0, 9, 3.2, 0.15, 0, TAU);
   ctx.fill();
   ctx.restore();
 }

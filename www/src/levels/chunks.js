@@ -184,10 +184,10 @@ export const CHUNKS = {
   // Paint-stroke steps that come and go on the beat.
   beatSteps(b, d) {
     const n = 3 + Math.round(d * 2);
-    // Every step blinks out together at the end of each bar (half a beat,
-    // a full beat when hard), so the player keeps time by being in the air
-    // then. One shared phase works at any tempo and any run speed.
-    const on = d > 0.85 ? 3 : 3.5;
+    // Every step blinks out together for the last half beat of each bar,
+    // so the player keeps time by being in the air then. One shared phase
+    // works at any tempo and any run speed; harder sets are just longer.
+    const on = 3.5;
     // Wide steps with short gaps leave room to pick the moment to jump.
     const gap = 80;
     b.gap(110);

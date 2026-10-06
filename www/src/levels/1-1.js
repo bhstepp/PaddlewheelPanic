@@ -60,6 +60,8 @@ export default {
     { type: "crate", x: 8980, y: 520, w: 80, h: 80 },
     { type: "critter", x: 9020, y: 440 },
     { type: "critter", x: 9380, y: 520 },
+    // The hidden film reel: whistle, then bounce off the flipped critter.
+    { type: "reel", x: 9490, y: 250 },
     { type: "notes", x: 9520, y: 430, w: 200, h: 110, count: 4 },
     { type: "barrel", x: 9700, y: 540, bob: 12 },
     { type: "barrel", x: 9910, y: 540, bob: 14 },

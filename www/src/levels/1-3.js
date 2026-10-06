@@ -1,0 +1,25 @@
+// Level 1-3 · Paddlewheel Pursuit: the Captain gives chase down the river.
+export default {
+  id: "1-3",
+  name: "Paddlewheel Pursuit",
+  seed: 103,
+  boss: true,
+  chunks: [
+    ["start"],
+    ["hint", 0, { text: "THE CAPTAIN WON'T QUIT! WHISTLE AT LEVERS TO KNOCK HIM BACK", desktop: "THE CAPTAIN WON'T QUIT! PRESS W AT LEVERS TO KNOCK HIM BACK" }],
+    ["bossSwitch", 0.2],
+    ["barrelRun", 0.5],
+    ["critterDock", 0.5],
+    ["raftHop", 0.6],
+    ["bossSwitch", 0.4],
+    ["dashRun"],
+    ["crateStack", 0.6],
+    ["reelSpring"],
+    ["barrelRun", 0.8],
+    ["bossSwitch", 0.6],
+    ["critterCrate", 0.7],
+    ["raftHop", 0.8],
+    ["bossSwitch", 0.8],
+    ["critterDock", 0.9],
+  ],
+};

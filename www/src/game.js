@@ -36,7 +36,7 @@ export class Game {
   }
 
   reset() {
-    this.level = loadLevel(this.def, this.theme);
+    this.level = loadLevel(this.def, this.theme, { bpm: this.bpm });
     const first = this.level.platforms.find((p) => p.type === "dock");
     this.hero = createHero(first.x + 80, first.y);
     this.hero.ground = first;

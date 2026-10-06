@@ -15,6 +15,7 @@ export class Builder {
     this.objects = [];
     this.decoKinds = theme?.decoKinds ?? ["lamp", "lifering", "coil"];
     this.perch = theme?.perch ?? "gull";
+    this.bpm = 120;
   }
 
   add(o) {
@@ -183,13 +184,19 @@ export const CHUNKS = {
   // Paint-stroke steps that come and go on the beat.
   beatSteps(b, d) {
     const n = 3 + Math.round(d * 2);
-    b.gap(130);
+    // Every step blinks out together at the end of each bar (half a beat,
+    // a full beat when hard), so the player keeps time by being in the air
+    // then. One shared phase works at any tempo and any run speed.
+    const on = d > 0.85 ? 3 : 3.5;
+    // Wide steps with short gaps leave room to pick the moment to jump.
+    const gap = 80;
+    b.gap(110);
     for (let i = 0; i < n; i++) {
-      b.add({ type: "beat", x: b.x, y: LEDGE_Y, w: 160, period: 4, on: 3, offset: (i * 2) % 4 });
-      b.notesArc(b.x + 120, 430, 160, 70, 2);
-      b.x += 160 + 140;
+      b.add({ type: "beat", x: b.x, y: LEDGE_Y, w: 200, period: 4, on, offset: 0 });
+      b.notesArc(b.x + 150, 440, 130, 60, 2);
+      b.x += 200 + gap;
     }
-    b.x -= 140;
+    b.x -= gap;
     b.gap(140);
     b.ledge(520);
   },
@@ -317,8 +324,10 @@ export const CHUNKS = {
 };
 
 // Expand a chunk list into plain level objects.
-export function buildFromChunks(list, rng, theme) {
+// opts.bpm is the zone song's tempo, so rhythm chunks can space to the beat.
+export function buildFromChunks(list, rng, theme, opts = {}) {
   const b = new Builder(rng, theme);
+  b.bpm = opts.bpm ?? 120;
   for (const [name, d = 0.5, o = {}] of list) {
     const fn = CHUNKS[name];
     if (!fn) throw new Error(`Unknown chunk "${name}"`);

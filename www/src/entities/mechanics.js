@@ -168,7 +168,9 @@ function paintCrumble(ctx, w, h) {
 // ---------------------------------------------------------------- beat platform
 
 // A platform that is only there on certain beats: solid while
-// (beat + offset) % period < on. The level hint teaches the rhythm.
+// (beat + offset) % period < on, with fractional beats allowed (period 4,
+// on 3.5 blinks out for the last half beat of every bar). It trembles for
+// the half beat before it goes.
 export class BeatPlatform {
   constructor(o) {
     this.type = "beat";
@@ -187,15 +189,25 @@ export class BeatPlatform {
   }
 
   update(dt, g) {
-    const b = Math.floor(g.beatCount ?? 0) + this.offset;
-    const lit = ((b % this.period) + this.period) % this.period < this.on;
+    const ph = ((((g.beatCount ?? 0) + this.offset) % this.period) + this.period) % this.period;
+    const lit = ph < this.on;
+    this.warn = lit && ph > this.on - 0.5 ? (ph - this.on + 0.5) * 2 : 0;
     this.solid = lit ? "top" : null;
     this.vis += ((lit ? 1 : 0) - this.vis) * Math.min(1, dt * 18);
   }
 
   draw(ctx, g) {
     const sk = skin(g, "beat");
-    if (sk) return sk(ctx, this, g);
+    if (this.warn) {
+      ctx.save();
+      ctx.translate(Math.sin(g.time * 70) * 3 * this.warn, 0);
+    }
+    if (sk) sk(ctx, this, g);
+    else this.paint(ctx);
+    if (this.warn) ctx.restore();
+  }
+
+  paint(ctx) {
     const { x, y, w } = this;
     // Ghost outline always shows where it will be.
     ctx.save();

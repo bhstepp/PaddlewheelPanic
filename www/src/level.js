@@ -14,16 +14,16 @@ const PLATFORMS = { dock: Dock, crate: Crate, barrel: Barrel, raft: Raft, spring
 const PX_PER_FT = 12;
 
 // Turn a level definition into plain objects plus the landing x.
-export function expandLevel(def, theme) {
+export function expandLevel(def, theme, opts = {}) {
   if (def.chunks) {
-    const { objects, landingX } = buildFromChunks(def.chunks, rng(def.seed ?? 1), theme);
+    const { objects, landingX } = buildFromChunks(def.chunks, rng(def.seed ?? 1), theme, opts);
     return { objects, landingX };
   }
   return { objects: def.objects, landingX: def.landing.x };
 }
 
-export function loadLevel(def, theme) {
-  const { objects, landingX } = expandLevel(def, theme);
+export function loadLevel(def, theme, opts = {}) {
+  const { objects, landingX } = expandLevel(def, theme, opts);
   const level = {
     id: def.id,
     name: def.name,

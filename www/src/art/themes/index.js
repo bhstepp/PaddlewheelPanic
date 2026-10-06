@@ -3,8 +3,9 @@ import river from "./river.js";
 import mountains from "./mountains.js";
 import haunted from "./haunted.js";
 import studio from "./studio.js";
+import park from "./park.js";
 
-const THEMES = { river, mountains, haunted, studio };
+const THEMES = { river, mountains, haunted, studio, park };
 
 export function getTheme(id) {
   return THEMES[id] ?? river;

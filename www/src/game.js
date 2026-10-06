@@ -5,7 +5,7 @@ import { createHero, stepHero, heroRect, startJump } from "./physics.js";
 import { Steamboat } from "./entities/steamboat.js";
 import { FX } from "./fx.js";
 import { drawHero } from "./art/hero.js";
-import { drawBackground, drawForeground } from "./art/scenery.js";
+import { drawBackground, drawForeground, drawPaperFinish } from "./art/scenery.js";
 
 const W = CONFIG.width;
 
@@ -350,5 +350,6 @@ export class Game {
     ctx.restore();
 
     drawForeground(ctx, cam, this);
+    drawPaperFinish(ctx);
   }
 }

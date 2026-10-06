@@ -79,6 +79,60 @@ function windowPane(ctx, x, y, w, h, ink, lw) {
   ctx.stroke();
 }
 
+
+// A clump of foliage drawn like the reference trees: one clean inked
+// silhouette over the union of the lobes, a shaded underside, and small
+// scalloped leaf marks.
+function treeClump(ctx, lobes, r, { fill = C.silver, ink = C.charcoal, lw = 1.6, trunk = null } = {}) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  const p = new Path2D();
+  for (const [x, y, rx, ry] of lobes) {
+    p.moveTo(x + rx, y);
+    p.ellipse(x, y, rx, ry, 0, 0, TAU);
+    minX = Math.min(minX, x - rx); maxX = Math.max(maxX, x + rx);
+    minY = Math.min(minY, y - ry); maxY = Math.max(maxY, y + ry);
+  }
+  if (trunk) {
+    const [tx, ty, tb] = trunk;
+    line(ctx, ink, 4.5);
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    ctx.quadraticCurveTo(tx - 2, (ty + tb) / 2, tx + 1, tb);
+    ctx.stroke();
+    line(ctx, C.slate, 2.2);
+    ctx.stroke();
+  }
+  ctx.save();
+  line(ctx, ink, lw * 2);
+  ctx.stroke(p);
+  ctx.restore();
+  ctx.fillStyle = fill;
+  ctx.fill(p);
+  ctx.save();
+  ctx.clip(p);
+  const g = ctx.createLinearGradient(minX, minY, maxX * 0.4 + minX * 0.6, maxY);
+  g.addColorStop(0, "rgba(248,246,240,0.55)");
+  g.addColorStop(0.45, "rgba(248,246,240,0)");
+  g.addColorStop(1, "rgba(23,22,20,0.38)");
+  ctx.fillStyle = g;
+  ctx.fillRect(minX, minY, maxX - minX, maxY - minY);
+  // Leaf scallops: darker in the lower half, lighter up top.
+  const n = Math.round(((maxX - minX) * (maxY - minY)) / 90);
+  for (let i = 0; i < n; i++) {
+    const x = minX + r() * (maxX - minX);
+    const y = minY + r() * (maxY - minY);
+    const lower = (y - minY) / (maxY - minY) > 0.5;
+    ctx.strokeStyle = lower ? C.slate : C.paper;
+    ctx.globalAlpha = lower ? 0.55 : 0.7;
+    ctx.lineWidth = 1;
+    const sz = 2.5 + r() * 2.5;
+    ctx.beginPath();
+    ctx.arc(x, y, sz, Math.PI * 0.1, Math.PI * 0.9, lower);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 // ---------------------------------------------------------------- sky
 
 function paintSky(res) {
@@ -178,7 +232,35 @@ function paintHills(res) {
   cliff.bezierCurveTo(lx + 260, 220, lx + 300, 250, lx + 340, h);
   cliff.closePath();
   wash(ctx, cliff, C.silver, C.slate, { dir: "right", strength: 0.5, x: lx - 260, y: 70, w: 600, h: h - 70 });
-  line(ctx, C.slate, 2);
+  // Grass and scattered rocks on the headland.
+  ctx.save();
+  ctx.clip(cliff);
+  line(ctx, C.slate, 1);
+  ctx.globalAlpha = 0.6;
+  ctx.beginPath();
+  for (let i = 0; i < 420; i++) {
+    const gx = lx - 240 + r() * 560;
+    const gy = 80 + r() * (h - 80);
+    ctx.moveTo(gx, gy);
+    ctx.lineTo(gx + r.range(-1, 2), gy - r.range(2, 5));
+  }
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  for (let i = 0; i < 26; i++) {
+    const rx = lx + 100 + r() * 220;
+    const ry = 120 + r() * (h - 130);
+    const rs = r.range(4, 10);
+    const rock = new Path2D();
+    rock.moveTo(rx - rs, ry);
+    rock.quadraticCurveTo(rx - rs * 0.8, ry - rs * 0.9, rx, ry - rs);
+    rock.quadraticCurveTo(rx + rs, ry - rs * 0.7, rx + rs, ry);
+    rock.closePath();
+    wash(ctx, rock, C.ash, C.ink, { dir: "right", strength: 0.5, x: rx - rs, y: ry - rs, w: rs * 2, h: rs });
+    line(ctx, C.slate, 1);
+    ctx.stroke(rock);
+  }
+  ctx.restore();
+  line(ctx, C.charcoal, 2);
   ctx.stroke(cliff);
   // Rock strata.
   line(ctx, C.ash, 1.4);
@@ -258,17 +340,43 @@ function paintHills(res) {
   windowPane(ctx, cx + 24, 62, 8, 8, C.slate, 1);
 
   hill(ridge2, C.silver, C.slate, 2);
-  // Soft tree clumps along the nearer ridge.
-  for (let x = 30; x < HILLS_W - 30; x += r.range(40, 120)) {
+  // Fields, hedgerows and tree clumps on the nearer slopes.
+  const near = new Path2D();
+  near.moveTo(0, h);
+  for (let x = 0; x <= HILLS_W; x += 12) near.lineTo(x, ridge2(x));
+  near.lineTo(HILLS_W, h);
+  near.closePath();
+  ctx.save();
+  ctx.clip(near);
+  // Curving field furrows.
+  line(ctx, C.ash, 1);
+  for (let x = 0; x < HILLS_W; x += r.range(160, 320)) {
+    const y0 = ridge2(x) + 14;
+    ctx.beginPath();
+    for (let k = 0; k < 5; k++) {
+      ctx.moveTo(x, y0 + k * 9);
+      ctx.bezierCurveTo(x + 60, y0 + k * 9 - 8, x + 120, y0 + k * 11 + 6, x + 190, y0 + k * 12);
+    }
+    ctx.stroke();
+  }
+  // Grass ticks.
+  line(ctx, C.slate, 1);
+  ctx.globalAlpha = 0.55;
+  ctx.beginPath();
+  for (let i = 0; i < 900; i++) {
+    const x = r() * HILLS_W;
+    const y = ridge2(x) + 4 + r() ** 1.5 * 80;
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + r.range(-1, 2), y - r.range(2, 5));
+  }
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.restore();
+  for (let x = 30; x < HILLS_W - 30; x += r.range(50, 140)) {
     if (x > lx - 280 && x < lx + 360) continue;
     const y = ridge2(x) + 4;
-    const s = r.range(10, 20);
-    const p = new Path2D();
-    p.ellipse(x, y - s * 0.6, s * 1.2, s, 0, 0, TAU);
-    p.ellipse(x + s, y - s * 0.3, s * 0.8, s * 0.7, 0, 0, TAU);
-    wash(ctx, p, C.silver, C.slate, { dir: "right", strength: 0.4, x: x - s, y: y - 2 * s, w: s * 3, h: s * 2 });
-    line(ctx, C.ash, 1.5);
-    ctx.stroke(p);
+    const s = r.range(9, 18);
+    treeClump(ctx, [[x, y - s * 0.6, s * 1.2, s], [x + s, y - s * 0.3, s * 0.8, s * 0.7], [x - s * 0.7, y - s * 0.2, s * 0.6, s * 0.5]], r, { fill: C.silver, ink: C.slate, lw: 1.3 });
   }
   ctx.setTransform(res, 0, 0, res, 0, 0);
   paperTexture(ctx, HILLS_W, h + HILLS_OFF, r, { strength: 1.2 });
@@ -283,7 +391,7 @@ function paintTown(res) {
   const { ctx } = lay;
   const r = rng(57);
   const WL = HORIZON - TOWN_TOP; // waterline in layer coordinates
-  const ink = C.slate;
+  const ink = C.charcoal;
 
   // Groves of trees behind the buildings, in irregular clusters.
   for (let x = 20; x < TOWN_W - 40; x += r.range(90, 260)) {
@@ -292,18 +400,12 @@ function paintTown(res) {
       const s = r.range(14, 30);
       const tx = x + k * s * 1.1 + r.range(-6, 6);
       const ty = WL - 16 - r.range(14, 40);
-      const p = new Path2D();
-      p.ellipse(tx, ty - s * 0.4, s, s * 0.9, 0, 0, TAU);
-      p.ellipse(tx - s * 0.6, ty + s * 0.2, s * 0.7, s * 0.6, 0, 0, TAU);
-      p.ellipse(tx + s * 0.7, ty + s * 0.25, s * 0.75, s * 0.6, 0, 0, TAU);
-      wash(ctx, p, k % 2 ? C.silver : C.ash, C.slate, { dir: "right", strength: 0.55, x: tx - s * 1.4, y: ty - s * 1.4, w: s * 3, h: s * 2.4 });
-      line(ctx, C.slate, 1.4);
-      ctx.stroke(p);
-      line(ctx, C.slate, 2);
-      ctx.beginPath();
-      ctx.moveTo(tx, ty + s * 0.6);
-      ctx.lineTo(tx, WL - 16);
-      ctx.stroke();
+      treeClump(ctx, [
+        [tx, ty - s * 0.4, s, s * 0.9],
+        [tx - s * 0.6, ty + s * 0.2, s * 0.7, s * 0.6],
+        [tx + s * 0.7, ty + s * 0.25, s * 0.75, s * 0.6],
+        [tx + s * 0.1, ty - s * 1.0, s * 0.55, s * 0.5],
+      ], r, { fill: k % 2 ? C.silver : C.ash, trunk: [tx, ty + s * 0.5, WL - 16], lw: 1.4 });
     }
   }
 
@@ -332,7 +434,18 @@ function gableHouse(ctx, x, base, w, hgt, r, ink) {
   const y = base - hgt;
   const body = rectPath(x, y, w, hgt);
   wash(ctx, body, r() < 0.5 ? C.paper : C.silver, C.ash, { dir: "right", strength: 0.7, x, y, w, h: hgt });
-  line(ctx, ink, 1.5);
+  // Clapboard siding.
+  ctx.save();
+  ctx.clip(body);
+  line(ctx, C.ash, 0.8);
+  ctx.beginPath();
+  for (let yy = y + 4; yy < base; yy += 4) {
+    ctx.moveTo(x, yy);
+    ctx.lineTo(x + w, yy);
+  }
+  ctx.stroke();
+  ctx.restore();
+  line(ctx, ink, 1.7);
   ctx.stroke(body);
   const roofH = w * 0.45;
   const roof = new Path2D();
@@ -340,19 +453,53 @@ function gableHouse(ctx, x, base, w, hgt, r, ink) {
   roof.lineTo(x + w / 2, y - roofH);
   roof.lineTo(x + w + 5, y + 1);
   roof.closePath();
-  wash(ctx, roof, C.ash, C.slate, { dir: "right", strength: 0.5, x: x - 5, y: y - roofH, w: w + 10, h: roofH });
-  ctx.stroke(roof);
-  if (r() < 0.6) {
-    ctx.fillStyle = C.ash;
-    ctx.fillRect(x + w * 0.7, y - roofH * 0.8, 6, roofH * 0.6);
-    ctx.strokeRect(x + w * 0.7, y - roofH * 0.8, 6, roofH * 0.6);
-  }
-  const cols = Math.max(1, Math.floor(w / 16));
-  for (let c = 0; c < cols; c++) {
-    for (let rr = 0; rr < Math.max(1, Math.floor(hgt / 18)); rr++) {
-      windowPane(ctx, x + 5 + c * ((w - 10) / cols) + 1, y + 5 + rr * 16, 7, 8, ink, 0.8);
+  wash(ctx, roof, C.ash, C.slate, { dir: "right", strength: 0.6, x: x - 5, y: y - roofH, w: w + 10, h: roofH });
+  // Shingle courses.
+  ctx.save();
+  ctx.clip(roof);
+  line(ctx, C.slate, 0.8);
+  ctx.beginPath();
+  for (let yy = y - roofH + 4, row = 0; yy < y + 2; yy += 4, row++) {
+    ctx.moveTo(x - 6, yy);
+    ctx.lineTo(x + w + 6, yy);
+    for (let xx = x - 6 + (row % 2) * 3; xx < x + w + 6; xx += 6) {
+      ctx.moveTo(xx, yy);
+      ctx.lineTo(xx, yy - 4);
     }
   }
+  ctx.stroke();
+  ctx.restore();
+  line(ctx, ink, 1.7);
+  ctx.stroke(roof);
+  if (r() < 0.6) {
+    const cx = x + w * 0.7;
+    const ch = rectPath(cx, y - roofH * 0.8, 6, roofH * 0.6);
+    wash(ctx, ch, C.ash, null);
+    ctx.stroke(ch);
+    if (r() < 0.4) {
+      for (let k = 0; k < 3; k++) {
+        ctx.beginPath();
+        ctx.arc(cx + 3 + k * 5, y - roofH * 0.8 - 5 - k * 6, 3 + k * 1.5, 0, TAU);
+        ctx.fillStyle = C.paper;
+        ctx.fill();
+        line(ctx, C.ash, 0.9);
+        ctx.stroke();
+      }
+    }
+  }
+  const cols = Math.max(1, Math.floor(w / 16));
+  const rows = Math.max(1, Math.floor((hgt - 14) / 16));
+  for (let c = 0; c < cols; c++) {
+    for (let rr = 0; rr < rows; rr++) {
+      windowPane(ctx, x + 5 + c * ((w - 10) / cols) + 1, y + 5 + rr * 15, 7, 8, ink, 0.8);
+    }
+  }
+  // Front door.
+  const dx = x + (cols > 1 ? w / 2 - 4 : w - 12);
+  const door = rectPath(dx, base - 12, 8, 12);
+  wash(ctx, door, C.slate, null);
+  line(ctx, ink, 1);
+  ctx.stroke(door);
 }
 
 function drawTownPiece(ctx, kind, x, base, r, ink) {
@@ -556,8 +703,9 @@ function paintBand(res, top, bottom, parallax, size, seed) {
   const rows = Math.round(h / (size * 2.2));
   for (let row = 0; row < rows; row++) {
     const y = ((row + 0.5) * h) / rows + r.range(-2, 2);
-    const s = size * (0.75 + depth(y) * 0.6);
-    for (let x = r() * 80; x < bw - s * 3; x += s * r.range(7, 18)) {
+    let s = size;
+    for (let x = r() * 120; x < bw - s * 3; x += s * (r() < 0.3 ? r.range(3, 5) : r.range(8, 22))) {
+      s = size * (0.6 + depth(y) * 0.6) * r.range(0.7, 1.35);
       ctx.lineCap = "round";
       ctx.strokeStyle = C.charcoal;
       ctx.globalAlpha = 0.35;
@@ -854,15 +1002,28 @@ export function drawForeground(ctx, camX, g) {
   ctx.fillStyle = C.charcoal;
   ctx.fillRect(0, WATER + 70, W, H - WATER - 70);
   ctx.globalAlpha = 1;
-  // Wave marks on the near water, moving with the camera.
+  // Wave marks on the near water, scattered irregularly, moving with the camera.
   const t = g.time;
-  const sp = 70;
   ctx.lineCap = "round";
-  for (let row = 0; row < 3; row++) {
-    const y = WATER + 30 + row * 30;
-    const s = 12 + row * 3;
-    const off = (camX + t * 20 * (row + 1)) % sp;
-    for (let x = -off - (row * 23) % sp; x < W; x += sp + row * 11) {
+  for (let row = 0; row < 4; row++) {
+    const y0 = WATER + 26 + row * 26;
+    const sp = 90 + row * 14;
+    const off = camX * (1 + row * 0.08) + t * 16 * (row + 1);
+    const first = Math.floor(off / sp) - 1;
+    for (let cell = first; cell < first + W / sp + 3; cell++) {
+      const hsh = Math.abs(Math.sin(cell * 12.9898 + row * 78.233) * 43758.5453) % 1;
+      if (hsh < 0.3) continue;
+      const x = cell * sp - off + hsh * sp * 0.7;
+      const y = y0 + (hsh - 0.5) * 12;
+      const s = (11 + row * 3) * (0.7 + hsh * 0.6);
+      ctx.strokeStyle = C.ink;
+      ctx.globalAlpha = 0.35;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x, y + 3);
+      ctx.quadraticCurveTo(x + s * 0.6, y - s * 0.2 + 3, x + s * 1.2, y + 3);
+      ctx.quadraticCurveTo(x + s * 1.8, y + s * 0.35 + 3, x + s * 2.4, y + 3);
+      ctx.stroke();
       ctx.strokeStyle = C.paper;
       ctx.globalAlpha = 0.85;
       ctx.lineWidth = 2.6;
@@ -885,4 +1046,49 @@ export function drawForeground(ctx, camX, g) {
   smoothPath(ctx, pts);
   ctx.stroke();
   tile(ctx, L.front, camX * 1.35, FRONT_TOP);
+}
+
+// A unified paper-and-watercolor finish over the whole illustrated frame:
+// broad soft blooms, darker pooled edges and fine fibres. Painted once.
+let finish = null;
+export function drawPaperFinish(ctx) {
+  if (!finish) {
+    const lay = makeLayer(W, H, 1);
+    const c = lay.ctx;
+    const r = rng(2024);
+    for (let i = 0; i < 70; i++) {
+      const x = r() * W;
+      const y = r() * H;
+      const rad = 60 + r() * 220;
+      const g = c.createRadialGradient(x, y, rad * 0.2, x, y, rad);
+      const dark = r() < 0.6;
+      g.addColorStop(0, dark ? "rgba(23,22,20,0.05)" : "rgba(248,246,240,0.06)");
+      g.addColorStop(0.85, dark ? "rgba(23,22,20,0.035)" : "rgba(248,246,240,0.02)");
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      c.fillStyle = g;
+      c.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+    }
+    // Pooled pigment toward the frame edges.
+    const e = c.createRadialGradient(W / 2, H / 2, H * 0.45, W / 2, H / 2, W * 0.62);
+    e.addColorStop(0, "rgba(23,22,20,0)");
+    e.addColorStop(1, "rgba(23,22,20,0.18)");
+    c.fillStyle = e;
+    c.fillRect(0, 0, W, H);
+    // Paper fibres.
+    c.strokeStyle = C.ink;
+    c.lineWidth = 0.6;
+    c.globalAlpha = 0.08;
+    c.beginPath();
+    for (let i = 0; i < 1400; i++) {
+      const x = r() * W;
+      const y = r() * H;
+      const a = r() * TAU;
+      const l = 2 + r() * 6;
+      c.moveTo(x, y);
+      c.quadraticCurveTo(x + Math.cos(a) * l * 0.5 + 1, y + Math.sin(a) * l * 0.5 + 1, x + Math.cos(a) * l, y + Math.sin(a) * l);
+    }
+    c.stroke();
+    finish = lay;
+  }
+  ctx.drawImage(finish.canvas, 0, 0, W, H);
 }

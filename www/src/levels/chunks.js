@@ -138,6 +138,169 @@ export const CHUNKS = {
     b.notesArc(x0 + 200, 300, 160, 30, 3);
   },
 
+  // ---- Zone mechanics.
+
+  // A wide gap with a hook: jump, keep holding to grab, let go to fling.
+  hookSwing(b, d) {
+    const x0 = b.x;
+    b.add({ type: "hook", x: x0 + 140, y: 285 });
+    b.notesArc(x0 + 60, 470, 300, 110, 5);
+    b.gap(Math.round(lerp(330, 360, d)));
+    b.ledge(560);
+  },
+
+  // Two hooks in a row: grab, fling, grab again.
+  hookChain(b, d) {
+    const x0 = b.x;
+    b.add({ type: "hook", x: x0 + 140, y: 285 });
+    b.add({ type: "hook", x: x0 + 480, y: 285 });
+    b.notesArc(x0 + 220, 400, 260, 70, 4);
+    b.gap(Math.round(lerp(660, 690, d)));
+    b.ledge(560);
+  },
+
+  // Ledges that give way a moment after you land: keep moving.
+  crumbleRun(b, d) {
+    const n = 3 + Math.round(d * 2);
+    b.gap(120);
+    for (let i = 0; i < n; i++) {
+      b.add({ type: "crumble", x: b.x, y: LEDGE_Y, w: 150 });
+      b.notesArc(b.x + 100, 420, 160, 60, 2);
+      b.x += 150 + Math.round(lerp(100, 125, d));
+    }
+    b.ledge(520);
+  },
+
+  // A springboard launches you over a tall wall of crates.
+  springWall(b, d) {
+    b.gap(Math.round(lerp(110, 140, d)));
+    const { x0 } = b.ledge(1000, { dress: false });
+    b.add({ type: "spring", x: x0 + 300, y: LEDGE_Y });
+    for (let k = 0; k < 3; k++) b.crate(x0 + 470, 80, LEDGE_Y - k * 80);
+    b.notesArc(x0 + 330, 240, 220, 60, 4);
+  },
+
+  // Paint-stroke steps that come and go on the beat.
+  beatSteps(b, d) {
+    const n = 3 + Math.round(d * 2);
+    b.gap(130);
+    for (let i = 0; i < n; i++) {
+      b.add({ type: "beat", x: b.x, y: LEDGE_Y, w: 160, period: 4, on: 3, offset: (i * 2) % 4 });
+      b.notesArc(b.x + 120, 430, 160, 70, 2);
+      b.x += 160 + 140;
+    }
+    b.x -= 140;
+    b.gap(140);
+    b.ledge(520);
+  },
+
+  // Platforms riding up and down on chains.
+  liftHop(b, d) {
+    const n = 2 + Math.round(d);
+    b.gap(150);
+    for (let i = 0; i < n; i++) {
+      b.add({ type: "lift", x: b.x, y: 470, w: 160, range: Math.round(lerp(50, 80, d)), speed: 1.3 + d * 0.5, phase: i * 1.7 });
+      b.notesArc(b.x + 40, 380, 120, 40, 2);
+      b.x += 160 + 150;
+    }
+    b.x -= 150;
+    b.gap(150);
+    b.ledge(520);
+  },
+
+  // Bounce from balloon to balloon across open water.
+  balloonHop(b, d) {
+    const n = 2 + Math.round(d * 2);
+    b.gap(170);
+    for (let i = 0; i < n; i++) {
+      b.add({ type: "balloon", x: b.x, y: 440 });
+      b.notesArc(b.x + 40, 300, 220, 80, 3);
+      b.x += 250;
+    }
+    b.x += 30;
+    b.ledge(560);
+  },
+
+  // A hall with floating ghosts at head height: whistle to spook them.
+  ghostHall(b, d) {
+    b.gap(Math.round(lerp(110, 140, d)));
+    const { x0 } = b.ledge(d > 0.5 ? 1100 : 900);
+    b.add({ type: "ghost", x: x0 + 450, y: 450 });
+    if (d > 0.5) b.add({ type: "ghost", x: x0 + 780, y: 450, range: 60 });
+    b.notesRow(x0 + 300, 470, 500, 5);
+  },
+
+  // ---- Instrument set pieces.
+
+  drumWall(b) {
+    b.gap(120);
+    const { x0 } = b.ledge(1000, { dress: false });
+    b.add({ type: "power", kind: "drum", x: x0 + 160, y: 470 });
+    b.add({ type: "crate", x: x0 + 520, y: LEDGE_Y, w: 90, h: 90, breakable: true });
+    b.add({ type: "crate", x: x0 + 520, y: LEDGE_Y - 90, w: 90, h: 70, breakable: true });
+    b.add({ type: "critter", x: x0 + 820, y: LEDGE_Y });
+    b.notesRow(x0 + 520, 470, 200, 3);
+  },
+
+  dashRun(b) {
+    b.gap(120);
+    const { x0 } = b.ledge(1200);
+    b.add({ type: "power", kind: "washboard", x: x0 + 140, y: 470 });
+    for (const dx of [420, 560, 700, 840]) b.add({ type: "critter", x: x0 + dx, y: LEDGE_Y });
+    b.notesRow(x0 + 380, 470, 520, 6);
+  },
+
+  tromboneGap(b) {
+    b.gap(120);
+    const { x0, x1 } = b.ledge(600);
+    b.add({ type: "power", kind: "trombone", x: x0 + 250, y: 470 });
+    b.add({ type: "hint", x: x0 + 240, text: "JUMP, THEN HOLD TO GLIDE", desktop: "JUMP, THEN HOLD SPACE TO GLIDE" });
+    b.notesArc(x1 - 40, 360, 420, 40, 6);
+    b.gap(380);
+    b.ledge(600);
+  },
+
+  tubaPickup(b) {
+    b.gap(120);
+    const { x0 } = b.ledge(600);
+    b.add({ type: "power", kind: "tuba", x: x0 + 260, y: 470 });
+  },
+
+  // ---- Boss chase: a lever that sends cargo crashing into the Captain.
+  bossSwitch(b, d) {
+    b.gap(Math.round(lerp(110, 140, d)));
+    const { x0 } = b.ledge(760, { dress: false });
+    b.add({ type: "switch", x: x0 + 430, y: LEDGE_Y });
+  },
+
+  // ---- Film-reel hiding places (one per level).
+  reelSpring(b) {
+    b.gap(120);
+    const { x0 } = b.ledge(1000, { dress: false });
+    b.add({ type: "spring", x: x0 + 300, y: LEDGE_Y });
+    for (let k = 0; k < 3; k++) b.crate(x0 + 470, 80, LEDGE_Y - k * 80);
+    b.add({ type: "reel", x: x0 + 470, y: 150 });
+  },
+
+  reelHook(b) {
+    const x0 = b.x;
+    b.add({ type: "hook", x: x0 + 140, y: 285 });
+    b.add({ type: "reel", x: x0 + 345, y: 330 });
+    b.gap(340);
+    b.ledge(600);
+  },
+
+  reelBounce(b) {
+    b.gap(120);
+    const { x0 } = b.ledge(900);
+    b.add({ type: "critter", x: x0 + 360, y: LEDGE_Y });
+    b.add({ type: "reel", x: x0 + 470, y: 250 });
+  },
+
+  hint(b, d, o) {
+    b.add({ type: "hint", x: b.x - 400, text: o.text, desktop: o.desktop ?? o.text });
+  },
+
   landing(b) {
     b.gap(160);
     const x0 = b.x;
@@ -156,10 +319,10 @@ export const CHUNKS = {
 // Expand a chunk list into plain level objects.
 export function buildFromChunks(list, rng, theme) {
   const b = new Builder(rng, theme);
-  for (const [name, d = 0.5] of list) {
+  for (const [name, d = 0.5, o = {}] of list) {
     const fn = CHUNKS[name];
     if (!fn) throw new Error(`Unknown chunk "${name}"`);
-    fn(b, d);
+    fn(b, d, o);
   }
   if (!b.landing) CHUNKS.landing(b);
   return { objects: b.objects, landingX: b.landing };

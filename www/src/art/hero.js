@@ -26,6 +26,18 @@ export function drawHero(ctx, s) {
   const t = s.t ?? 0;
   const ph = s.phase ?? 0;
   const rig = buildRig(pose, ph, t, s.beat ?? 0);
+  if (s.reach) {
+    // Rubber-hose arm stretched all the way up to the hook (reach is the
+    // hook's offset from the feet in world units).
+    const sx = scale / Math.sqrt(sq);
+    const sy = scale * sq;
+    const hx = s.reach.dx / sx;
+    const hy = s.reach.dy / sy + 12;
+    rig.handF = { x: hx, y: hy };
+    rig.elbowF = { x: -6, y: 0 };
+    rig.handB = { x: hx - 10, y: hy + 6 };
+    rig.elbowB = { x: -10, y: 0 };
+  }
 
   ctx.save();
   ctx.translate(s.x, s.y);
@@ -141,6 +153,19 @@ function buildRig(pose, ph, t, beat) {
     r.elbowF = { x: 10, y: 2 };
     r.handB = { x: -30, y: -118 - w };
     r.elbowB = { x: -10, y: 2 };
+  } else if (pose === "swing") {
+    // Hanging from a hook: legs trail behind, body stretched.
+    const w = Math.sin(t * 10) * 3;
+    r.lean = -0.05;
+    r.headTilt = -0.18;
+    r.footF = { x: -6, y: 2 + w };
+    r.kneeF = { x: -6, y: 0 };
+    r.footB = { x: -22, y: -4 - w };
+    r.kneeB = { x: -6, y: 0 };
+    r.handF = { x: 20, y: -120 };
+    r.elbowF = { x: 0, y: 0 };
+    r.handB = { x: 4, y: -118 };
+    r.elbowB = { x: -6, y: 0 };
   } else if (pose === "dance") {
     const k = Math.sin(t * Math.PI * 2); // one cycle per second at 120 bpm half-time
     const hop = -Math.max(0, Math.sin(t * Math.PI * 4)) * 8 - beat * 3;

@@ -4,6 +4,7 @@ import { PALETTE as C, SERIF } from "./art/palette.js";
 import { TAU, roundRect, spacedText, star, noteGlyph } from "./art/draw.js";
 import { drawHero } from "./art/hero.js";
 import { drawBackground } from "./art/scenery.js";
+import { instrument } from "./entities/mechanics.js";
 import { CONFIG } from "./config.js";
 
 const W = CONFIG.width;
@@ -175,6 +176,34 @@ export function drawHUD(ctx, game, safe) {
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
   ctx.fillText(`× ${game.notes + game.bonus}`, lx + 62, iy + 2);
+
+  // Beat combo.
+  let row = top + 66;
+  if (game.combo >= 2) {
+    pill(ctx, lx, row, 132, 40);
+    spacedText(ctx, `\u266A \u00D7${game.combo}`, lx + 66, row + 21, 22, 3);
+    row += 48;
+  }
+  // Active instrument with its remaining time.
+  const pw = h.power;
+  if (pw) {
+    pill(ctx, lx, row, 176, 48);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(lx + 26, row + 24, 18, 0, TAU);
+    ctx.fillStyle = C.paper;
+    ctx.fill();
+    ctx.restore();
+    instrument(ctx, pw.kind, lx + 26, row + 25, 0.62);
+    const k = Math.max(0, pw.t / CONFIG.powerTime[pw.kind]);
+    roundRect(ctx, lx + 54, row + 18, 100, 12, 6);
+    ctx.fillStyle = C.ink;
+    ctx.fill();
+    roundRect(ctx, lx + 54, row + 18, Math.max(12, 100 * k), 12, 6);
+    ctx.fillStyle = C.paper;
+    ctx.fill();
+    if (pw.kind === "drum") spacedText(ctx, `\u00D7${pw.uses}`, lx + 164, row + 25, 16, 1, { align: "right" });
+  }
 
   // Distance.
   const dist = `${game.distanceFt} FT`;

@@ -13,13 +13,26 @@ export class Crate {
     this.h = o.h ?? 80;
     this.solid = "full";
     this.safe = true;
+    this.breakable = !!o.breakable; // a drum BOOM or a washboard dash smashes it
+    this.broken = false;
+    this.seed = o.x * 7 + this.y;
     this.dx = 0;
     this.dy = 0;
   }
 
   update() {}
 
-  draw(ctx) {
+  reset() {
+    if (this.breakable) {
+      this.broken = false;
+      this.solid = "full";
+    }
+  }
+
+  draw(ctx, g) {
+    if (this.broken) return;
+    const sk = g?.theme?.skins?.block;
+    if (sk) return sk(ctx, this, g);
     const spr = cached(`crate:${this.x}:${this.y}`, this.w + 8, this.h + 8, (c) => paintCrate(c, this.w, this.h, this.x * 7 + this.y));
     ctx.drawImage(spr.canvas, this.x - 4, this.y - 4, spr.w, spr.h);
   }

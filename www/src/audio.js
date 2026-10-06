@@ -371,6 +371,34 @@ class Audio {
       case "bounce":
         this.tone(bus, "triangle", 300, t, 0.2, 0.4, 3000, 900);
         break;
+      case "creak": // a ledge giving way
+        this.tone(bus, "sawtooth", 140, t, 0.35, 0.08, 700, 90);
+        this.hit(bus, t, 0.3, 0.12, 500, "bandpass");
+        break;
+      case "boom": // bass drum
+        this.tone(bus, "sine", 110, t, 0.5, 0.9, 400, 40);
+        this.hit(bus, t, 0.25, 0.5, 300, "lowpass");
+        break;
+      case "crash": // the Captain's vehicle takes a hit
+        this.hit(bus, t, 0.6, 0.7, 1500, "lowpass", 200);
+        this.tone(bus, "square", 180, t, 0.4, 0.15, 900, 60);
+        break;
+      case "grab": // rubber-hose stretch
+        this.tone(bus, "triangle", 300, t, 0.18, 0.35, 3000, 700);
+        break;
+      case "power": {
+        const seq = ["G5", "C6", "E6", "G6"];
+        seq.forEach((s, i) => this.tone(bus, "square", midiHz(n(s)), t + i * 0.06, 0.1, 0.12, 5000));
+        break;
+      }
+      case "reel": {
+        const seq = ["C6", "E6", "G6", "C7", "G6", "C7"];
+        seq.forEach((s, i) => this.tone(bus, "triangle", midiHz(n(s)), t + i * 0.07, 0.14, 0.2, 6000));
+        break;
+      }
+      case "bubble":
+        for (let i = 0; i < 4; i++) this.tone(bus, "sine", 400 + i * 120, t + i * 0.07, 0.12, 0.25, 4000, 900 + i * 150);
+        break;
       case "gull": // two squawks
         this.tone(bus, "square", 1400, t, 0.12, 0.06, 2600, 900);
         this.tone(bus, "square", 1300, t + 0.15, 0.14, 0.05, 2600, 760);

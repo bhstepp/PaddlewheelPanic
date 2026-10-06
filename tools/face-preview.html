@@ -1,0 +1,10 @@
+<!doctype html><meta charset="utf-8"><body style="margin:0;background:#cfcbc3">
+<canvas id="c" width="1600" height="700"></canvas>
+<script type="module">
+// Face close-ups for review: open grin, closed smile, whistle, hurt.
+import { drawHero } from "../www/src/art/hero.js";
+const ctx = document.getElementById("c").getContext("2d");
+ctx.fillStyle = "#cfcbc3"; ctx.fillRect(0, 0, 1600, 700);
+const poses = [["jump", 0], ["stand", 0], ["run", 1], ["hurt", 0]];
+poses.forEach(([pose, w], i) => drawHero(ctx, { x: 230 + i * 390, y: 1060, pose, t: 0.4, scale: 5, whistle: w, shadow: false }));
+</script>

@@ -7,7 +7,7 @@ import { gull } from "../art/scenery.js";
 
 const TAU = Math.PI * 2;
 // Perched birds that take off as the hero runs past.
-const BIRDS = new Set(["gull", "crow", "pigeon"]);
+const BIRDS = new Set(["gull", "crow", "pigeon", "bat"]);
 
 function stroke(ctx, color, w) {
   ctx.strokeStyle = color;
@@ -30,7 +30,7 @@ export class Deco {
   }
 
   get w() {
-    return { lamp: 120, lifering: 60, coil: 60, stack: 140, shed: 300, gull: 40, crow: 40, pigeon: 40 }[this.kind] ?? 300;
+    return { lamp: 120, lifering: 60, coil: 60, stack: 140, shed: 300, gull: 40, crow: 40, pigeon: 40, bat: 40 }[this.kind] ?? 300;
   }
 
   update(dt, g) {

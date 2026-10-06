@@ -221,6 +221,11 @@ function render(dt) {
 
 // ---------------------------------------------------------------- boot
 
+// Start or revive audio on every real user gesture (needed on iPhone).
+for (const ev of ["touchend", "pointerup", "click", "keydown"]) {
+  window.addEventListener(ev, () => audio.gesture(), { capture: true, passive: true });
+}
+
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) pause();
 });

@@ -76,6 +76,7 @@ class Audio {
     this.musicBus = null;
     this.sfxBus = null;
     this.muted = false;
+    this.paused = false;
     this.musicOn = false;
     this.musicStart = 0;
     this.nextStep = 0;
@@ -85,12 +86,30 @@ class Audio {
     this.bpm = CONFIG.bpm;
   }
 
-  // Must run inside a user gesture (iOS requirement).
+  // Called from every tap, click and key press. iOS Safari only lets audio
+  // start from a real user-activation event (touchend, click, keydown), so
+  // keep retrying until the context is actually running.
+  gesture() {
+    this.unlock();
+    if (!this.ctx || this.paused || this.ctx.state === "running") return;
+    this.prime();
+    this.ctx.resume().catch(() => {});
+  }
+
+  // Play one silent sample: iOS needs a sound started inside the gesture.
+  prime() {
+    try {
+      const src = this.ctx.createBufferSource();
+      src.buffer = this.ctx.createBuffer(1, 1, this.ctx.sampleRate);
+      src.connect(this.ctx.destination);
+      src.start(0);
+    } catch {}
+  }
+
+  // Creates the audio context (once). Safe to call outside a gesture;
+  // gesture() is what actually starts sound on iOS.
   unlock() {
-    if (this.ctx) {
-      if (this.ctx.state === "suspended") this.ctx.resume();
-      return;
-    }
+    if (this.ctx) return;
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     // Let the iPhone silent switch mute the game.
@@ -102,7 +121,11 @@ class Audio {
     try {
       this.ctx = new AC({ latencyHint: "interactive" });
     } catch {
-      return;
+      try {
+        this.ctx = new AC();
+      } catch {
+        return;
+      }
     }
     const ctx = this.ctx;
     this.master = ctx.createGain();
@@ -124,12 +147,8 @@ class Audio {
     const d = this.noise.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
 
-    // Prime iOS by playing a silent buffer inside the gesture.
-    const src = ctx.createBufferSource();
-    src.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
-    src.connect(ctx.destination);
-    src.start(0);
-    if (ctx.state === "suspended") ctx.resume();
+    this.prime();
+    if (ctx.state !== "running") ctx.resume().catch(() => {});
   }
 
   setMuted(m) {
@@ -140,11 +159,14 @@ class Audio {
   }
 
   suspend() {
-    if (this.ctx && this.ctx.state === "running") this.ctx.suspend();
+    this.paused = true;
+    if (this.ctx && this.ctx.state === "running") this.ctx.suspend().catch(() => {});
   }
 
   resume() {
-    if (this.ctx && this.ctx.state === "suspended") this.ctx.resume();
+    this.paused = false;
+    // iOS can also report "interrupted" (after a call or backgrounding).
+    if (this.ctx && this.ctx.state !== "running" && this.ctx.state !== "closed") this.ctx.resume().catch(() => {});
   }
 
   get stepDur() {
@@ -178,7 +200,13 @@ class Audio {
   update(dt) {
     this.fallbackClock += dt;
     if (!this.ctx || !this.musicOn || this.ctx.state !== "running") return;
-    const ahead = this.ctx.currentTime + 0.2;
+    const now = this.ctx.currentTime;
+    // If audio started late, skip the missed steps instead of playing them all at once.
+    if (this.nextTime < now - 0.05) {
+      this.nextStep = Math.ceil((now - this.musicStart) / this.stepDur);
+      this.nextTime = this.musicStart + this.nextStep * this.stepDur;
+    }
+    const ahead = now + 0.2;
     while (this.nextTime < ahead) {
       this.scheduleStep(this.nextStep % SONG_STEPS, this.nextTime);
       this.nextStep++;
@@ -302,6 +330,10 @@ class Audio {
         break;
       case "bounce":
         this.tone(bus, "triangle", 300, t, 0.2, 0.4, 3000, 900);
+        break;
+      case "gull": // two squawks
+        this.tone(bus, "square", 1400, t, 0.12, 0.06, 2600, 900);
+        this.tone(bus, "square", 1300, t + 0.15, 0.14, 0.05, 2600, 760);
         break;
       case "toot": // the Captain's steam whistle
         this.tone(bus, "sawtooth", 233, t, 0.55, 0.12, 900);

@@ -5,7 +5,7 @@ import { createHero, stepHero, heroRect, startJump } from "./physics.js";
 import { Steamboat } from "./entities/steamboat.js";
 import { FX } from "./fx.js";
 import { drawHero } from "./art/hero.js";
-import { drawBackground, drawForeground } from "./art/scenery.js";
+import { drawBackground, drawForeground, drawPaperFinish } from "./art/scenery.js";
 
 const W = CONFIG.width;
 
@@ -97,6 +97,7 @@ export class Game {
 
     for (const p of L.platforms) p.update(dt, this);
     for (const c of L.critters) c.update(dt, this);
+    for (const d of L.decos) d.update(dt, this);
     this.fx.update(dt);
 
     if (this.state === "play") this.runTime += dt;
@@ -309,6 +310,9 @@ export class Game {
     ctx.translate(-cam, 0);
     const left = cam - 200;
     const right = cam + W + 200;
+    for (const d of L.decos) {
+      if (d.x + d.w > left && d.x - 60 < right) d.draw(ctx, this);
+    }
     for (const p of L.platforms) {
       if (p.x + p.w > left && p.x < right) p.draw(ctx, this);
     }
@@ -346,5 +350,6 @@ export class Game {
     ctx.restore();
 
     drawForeground(ctx, cam, this);
+    drawPaperFinish(ctx);
   }
 }

@@ -1,22 +1,30 @@
-// Parallax scenery, back to front: sky, sun, clouds, far hills and river town,
-// the levee bank, the river; then (after the gameplay layer) foreground water
-// and reeds. Every layer is painted once by hand-inked routines into an
-// offscreen canvas and tiled as the camera moves.
+// Parallax scenery in a soft, hand-inked storybook style: clean ink outlines,
+// watercolor washes and paper grain. Back to front: sky, sun, clouds, far hills
+// with a lighthouse, the far-shore town and wharves, a wide river with distant
+// boats and gulls; then (after the gameplay layer) near water and foreground
+// mooring posts. Each layer is painted once into an offscreen canvas and tiled.
 import { PALETTE as C } from "./palette.js";
 import { CONFIG } from "../config.js";
-import { TAU, rng, makeLayer, layerRes, pen, brush, hatch, foliage, smoothPath } from "./ink.js";
+import { TAU, rng, makeLayer, layerRes, smoothPath, wash, paperTexture } from "./ink.js";
 
 const W = CONFIG.width;
 const H = CONFIG.height;
 const WATER = CONFIG.waterY;
+const HORIZON = 452; // the far shore's waterline
 
-const FAR_W = 2560;
-const FAR_TOP = 290;
-const MID_W = 3200;
-const MID_TOP = 100;
-const FRONT_W = 2600;
-const FRONT_TOP = 600;
-const WATER_W = 1600;
+const HILLS_W = 3200;
+const HILLS_TOP = 90;
+const HILLS_OFF = 80; // headroom above the ridges for the lighthouse
+const TOWN_W = 3600;
+const TOWN_TOP = 250;
+const FRONT_W = 3400;
+const FRONT_TOP = 560;
+const BANDS = [
+  // [top, bottom, parallax, wave size, seed]
+  [HORIZON, 500, 0.16, 5, 3],
+  [500, 560, 0.45, 9, 5],
+  [560, H, 1.0, 15, 9],
+];
 
 let L = null;
 
@@ -24,127 +32,17 @@ function paintAll() {
   const res = layerRes();
   L = {
     sky: paintSky(res),
-    sun: paintSun(res),
     clouds: [0, 1, 2].map((i) => paintCloud(res, 101 + i)),
-    far: paintFar(res),
-    mid: paintMid(res),
-    water: paintWater(res),
+    hills: paintHills(res),
+    town: paintTown(res),
+    bands: BANDS.map((b) => paintBand(res, ...b)),
+    boat: paintBoat(res),
+    sail: paintSail(res),
     front: paintFront(res),
   };
 }
 
-// ---------------------------------------------------------------- sky
-
-function paintSky(res) {
-  const lay = makeLayer(W, WATER, res);
-  const { ctx } = lay;
-  const r = rng(7);
-  const g = ctx.createLinearGradient(0, 0, 0, WATER);
-  g.addColorStop(0, C.silver);
-  g.addColorStop(0.75, C.paper);
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, WATER);
-  // Long, loose horizontal pen strokes, denser toward the top like a hand-inked sky.
-  for (let y = 8; y < 260; y += 7 + y * 0.06) {
-    let x = r.range(-40, 40);
-    while (x < W) {
-      const len = r.range(80, 260);
-      if (r() < 0.75 - y / 420) {
-        ctx.globalAlpha = 0.35 + (1 - y / 260) * 0.35;
-        pen(ctx, [[x, y], [x + len * 0.5, y + r.range(-1.5, 1.5)], [x + len, y + r.range(-1, 1)]], r, { w: 1, color: C.ash, amp: 0.6 });
-      }
-      x += len + r.range(20, 90);
-    }
-  }
-  ctx.globalAlpha = 1;
-  return lay;
-}
-
-function paintSun(res) {
-  const lay = makeLayer(280, 280, res);
-  const { ctx } = lay;
-  const r = rng(11);
-  ctx.translate(140, 140);
-  // Wavy brush rays.
-  for (let i = 0; i < 16; i++) {
-    const a = (i / 16) * TAU;
-    const long = i % 2 === 0 ? 132 : 108;
-    const pts = [];
-    for (let k = 0; k <= 6; k++) {
-      const d = 70 + ((long - 70) * k) / 6;
-      const wob = Math.sin(k * 0.9) * 3;
-      pts.push([Math.cos(a) * d - Math.sin(a) * wob, Math.sin(a) * d + Math.cos(a) * wob]);
-    }
-    brush(ctx, pts, r, { w: i % 2 === 0 ? 9 : 6, color: C.ash, amp: 0.3 });
-  }
-  ctx.beginPath();
-  ctx.arc(0, 0, 62, 0, TAU);
-  ctx.fillStyle = C.paper;
-  ctx.fill();
-  // Soft shading crescent.
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(0, 0, 62, 0, TAU);
-  ctx.clip();
-  ctx.beginPath();
-  ctx.arc(-18, -18, 64, 0, TAU);
-  ctx.rect(-80, -80, 160, 160);
-  ctx.clip("evenodd");
-  hatch(ctx, -70, -70, 140, 140, r, { gap: 4, lw: 1, color: C.silver, angle: -0.7 });
-  ctx.restore();
-  pen(ctx, circlePts(0, 0, 62, 40), r, { w: 3, color: C.ash, amp: 1.2 });
-  return lay;
-}
-
-function circlePts(cx, cy, rad, n) {
-  const pts = [];
-  for (let i = 0; i <= n; i++) pts.push([cx + Math.cos((i / n) * TAU) * rad, cy + Math.sin((i / n) * TAU) * rad]);
-  return pts;
-}
-
-function paintCloud(res, seed) {
-  const lay = makeLayer(420, 190, res);
-  const { ctx } = lay;
-  const r = rng(seed);
-  const lobes = [];
-  const n = 7 + Math.floor(r() * 3);
-  for (let i = 0; i < n; i++) {
-    const u = i / (n - 1);
-    const rad = 30 + Math.sin(u * Math.PI) * 32 + r() * 10;
-    lobes.push([50 + u * 320, 120 - Math.sin(u * Math.PI) * 30 - r() * 14, rad]);
-  }
-  lobes.push([130, 135, 34], [260, 138, 36]);
-  const path = new Path2D();
-  for (const [x, y, rad] of lobes) {
-    path.moveTo(x + rad, y);
-    path.arc(x, y, rad, 0, TAU);
-  }
-  ctx.save();
-  ctx.lineWidth = 6;
-  ctx.strokeStyle = C.ash;
-  ctx.stroke(path);
-  ctx.fillStyle = C.paper;
-  ctx.fill(path);
-  // Hatched belly.
-  ctx.clip(path);
-  ctx.beginPath();
-  ctx.ellipse(210, 175, 220, 45, 0, 0, TAU);
-  ctx.clip();
-  hatch(ctx, 0, 100, 420, 90, r, { gap: 4, lw: 1.1, color: C.silver, angle: -0.35 });
-  ctx.restore();
-  // A few inner curl lines.
-  for (let i = 0; i < 4; i++) {
-    const [x, y, rad] = lobes[1 + Math.floor(r() * (n - 2))];
-    ctx.strokeStyle = C.silver;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(x, y + 6, rad * 0.6, 3.6, 5.2);
-    ctx.stroke();
-  }
-  return lay;
-}
-
-// ---------------------------------------------------------------- far hills and town
+// ---------------------------------------------------------------- helpers
 
 function periodic(x, period, terms) {
   let y = 0;
@@ -152,688 +50,992 @@ function periodic(x, period, terms) {
   return y;
 }
 
-function paintFar(res) {
-  const lay = makeLayer(FAR_W, WATER - FAR_TOP + 10, res);
-  const { ctx } = lay;
-  const r = rng(23);
-  const h1 = (x) => 62 + periodic(x, FAR_W, [[34, 2, 0.3], [20, 5, 1.1], [8, 11, 2.2]]);
-  const h2 = (x) => 122 + periodic(x, FAR_W, [[22, 3, 2.1], [12, 7, 0.4], [5, 13, 1.7]]);
+function line(ctx, color, w) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = w;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+}
 
-  // Back ridge.
-  const ridge = (fn, fill, line, shade, seed) => {
-    const rr = rng(seed);
-    const pts = [];
-    for (let x = 0; x <= FAR_W; x += 16) pts.push([x, fn(x)]);
-    const p = new Path2D();
-    p.moveTo(0, lay.h);
-    for (const [x, y] of pts) p.lineTo(x, y);
-    p.lineTo(FAR_W, lay.h);
-    p.closePath();
-    ctx.fillStyle = fill;
-    ctx.fill(p);
-    ctx.save();
-    ctx.clip(p);
-    // Contour hatching following the slopes.
-    for (let i = 0; i < 160; i++) {
-      const x = rr() * FAR_W;
-      const y = fn(x) + 6 + rr() * 40;
-      const len = rr.range(14, 36);
-      const slope = (fn(x + 4) - fn(x - 4)) / 8;
-      ctx.strokeStyle = shade;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(x + len, y + slope * len + rr.range(-1, 1));
-      ctx.stroke();
-    }
-    ctx.restore();
-    pen(ctx, pts, rr, { w: 2, color: line, amp: 0.8 });
-  };
-  ridge(h1, C.silver, C.ash, C.ash, 31);
+function rectPath(x, y, w, h) {
+  const p = new Path2D();
+  p.rect(x, y, w, h);
+  return p;
+}
 
-  // Little river town on the far ridge.
-  drawTown(ctx, 520, h2, r);
-  drawWindmill(ctx, 1880, h2(1880) + 4, r);
-  drawWaterTower(ctx, 1500, h2(1500) + 6, r);
+// Small paned window with a frame.
+function windowPane(ctx, x, y, w, h, ink, lw) {
+  ctx.fillStyle = C.slate;
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = C.ash;
+  ctx.fillRect(x + w * 0.55, y + 1, w * 0.4, h * 0.45);
+  line(ctx, ink, lw);
+  ctx.strokeRect(x, y, w, h);
+  ctx.beginPath();
+  ctx.moveTo(x + w / 2, y);
+  ctx.lineTo(x + w / 2, y + h);
+  ctx.moveTo(x, y + h / 2);
+  ctx.lineTo(x + w, y + h / 2);
+  ctx.stroke();
+}
 
-  ridge(h2, C.silver, C.slate, C.ash, 37);
-  // Rows of distant trees along the ridge line.
-  for (let x = 20; x < FAR_W - 20; x += r.range(14, 30)) {
-    if ((x > 470 && x < 1160) || (x > 1440 && x < 1560) || (x > 1830 && x < 1940)) continue;
-    const y = h2(x);
-    const s = r.range(6, 11);
-    ctx.fillStyle = C.ash;
+
+// A clump of foliage drawn like the reference trees: one clean inked
+// silhouette over the union of the lobes, a shaded underside, and small
+// scalloped leaf marks.
+function treeClump(ctx, lobes, r, { fill = C.silver, ink = C.charcoal, lw = 1.6, trunk = null } = {}) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  const p = new Path2D();
+  for (const [x, y, rx, ry] of lobes) {
+    p.moveTo(x + rx, y);
+    p.ellipse(x, y, rx, ry, 0, 0, TAU);
+    minX = Math.min(minX, x - rx); maxX = Math.max(maxX, x + rx);
+    minY = Math.min(minY, y - ry); maxY = Math.max(maxY, y + ry);
+  }
+  if (trunk) {
+    const [tx, ty, tb] = trunk;
+    line(ctx, ink, 4.5);
     ctx.beginPath();
-    ctx.ellipse(x, y - s * 0.6, s * 0.8, s, 0, 0, TAU);
-    ctx.fill();
-    ctx.strokeStyle = C.slate;
-    ctx.lineWidth = 1;
+    ctx.moveTo(tx, ty);
+    ctx.quadraticCurveTo(tx - 2, (ty + tb) / 2, tx + 1, tb);
+    ctx.stroke();
+    line(ctx, C.slate, 2.2);
     ctx.stroke();
   }
+  ctx.save();
+  line(ctx, ink, lw * 2);
+  ctx.stroke(p);
+  ctx.restore();
+  ctx.fillStyle = fill;
+  ctx.fill(p);
+  ctx.save();
+  ctx.clip(p);
+  const g = ctx.createLinearGradient(minX, minY, maxX * 0.4 + minX * 0.6, maxY);
+  g.addColorStop(0, "rgba(248,246,240,0.55)");
+  g.addColorStop(0.45, "rgba(248,246,240,0)");
+  g.addColorStop(1, "rgba(23,22,20,0.38)");
+  ctx.fillStyle = g;
+  ctx.fillRect(minX, minY, maxX - minX, maxY - minY);
+  // Leaf scallops: darker in the lower half, lighter up top.
+  const n = Math.round(((maxX - minX) * (maxY - minY)) / 90);
+  for (let i = 0; i < n; i++) {
+    const x = minX + r() * (maxX - minX);
+    const y = minY + r() * (maxY - minY);
+    const lower = (y - minY) / (maxY - minY) > 0.5;
+    ctx.strokeStyle = lower ? C.slate : C.paper;
+    ctx.globalAlpha = lower ? 0.55 : 0.7;
+    ctx.lineWidth = 1;
+    const sz = 2.5 + r() * 2.5;
+    ctx.beginPath();
+    ctx.arc(x, y, sz, Math.PI * 0.1, Math.PI * 0.9, lower);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ---------------------------------------------------------------- sky
+
+function paintSky(res) {
+  const lay = makeLayer(W, HORIZON + 10, res);
+  const { ctx } = lay;
+  const r = rng(7);
+  const g = ctx.createLinearGradient(0, 0, 0, HORIZON);
+  g.addColorStop(0, C.ash);
+  g.addColorStop(0.45, C.silver);
+  g.addColorStop(1, C.paper);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, HORIZON + 10);
+  paperTexture(ctx, W, HORIZON + 10, r, { strength: 1.4, blot: 1.6 });
+
+  // Plain sun disc with a soft ring, like a stamped moon in the reference.
+  ctx.beginPath();
+  ctx.arc(1010, 110, 54, 0, TAU);
+  ctx.fillStyle = C.paper;
+  ctx.fill();
+  line(ctx, C.ash, 3);
+  ctx.setLineDash([16, 5]);
+  ctx.stroke();
+  ctx.setLineDash([]);
   return lay;
 }
 
-function house(ctx, x, base, w, h, roof, r, opts = {}) {
-  const y = base - h;
-  ctx.fillStyle = opts.fill ?? C.paper;
-  ctx.fillRect(x, y, w, h);
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(x + w * 0.55, y, w * 0.45, h);
-  ctx.clip();
-  hatch(ctx, x, y, w, h, r, { gap: 3, lw: 0.8, color: C.ash, angle: 1.2 });
-  ctx.restore();
-  // Gable roof.
-  ctx.beginPath();
-  ctx.moveTo(x - 4, y);
-  ctx.lineTo(x + w / 2, y - roof);
-  ctx.lineTo(x + w + 4, y);
-  ctx.closePath();
-  ctx.fillStyle = C.ash;
-  ctx.fill();
-  ctx.strokeStyle = C.slate;
-  ctx.lineWidth = 1.3;
-  ctx.stroke();
-  pen(ctx, [[x, base], [x, y], [x + w, y], [x + w, base]], r, { w: 1.3, color: C.slate, amp: 0.5 });
-  // Windows.
-  ctx.fillStyle = C.slate;
-  const cols = Math.max(1, Math.floor(w / 12));
-  for (let i = 0; i < cols; i++) {
-    for (let j = 0; j < Math.max(1, Math.floor(h / 16)); j++) {
-      ctx.fillRect(x + 4 + i * ((w - 8) / cols), y + 5 + j * 14, 4, 6);
-    }
+function paintCloud(res, seed) {
+  const lay = makeLayer(440, 200, res);
+  const { ctx } = lay;
+  const r = rng(seed);
+  const lobes = [];
+  const n = 6 + Math.floor(r() * 3);
+  for (let i = 0; i < n; i++) {
+    const u = i / (n - 1);
+    lobes.push([60 + u * 310, 128 - Math.sin(u * Math.PI) * 40 - r() * 12, 26 + Math.sin(u * Math.PI) * 30 + r() * 10]);
   }
+  const path = new Path2D();
+  for (const [x, y, rad] of lobes) {
+    path.moveTo(x + rad, y);
+    path.arc(x, y, rad, 0, TAU);
+  }
+  path.rect(60, 128, 310, 30);
+  // Broken ink outline, drawn wide then covered by the fill.
+  ctx.save();
+  line(ctx, C.charcoal, 5);
+  ctx.setLineDash([18, 6, 4, 6]);
+  ctx.stroke(path);
+  ctx.restore();
+  ctx.fillStyle = C.paper;
+  ctx.fill(path);
+  // Soft gray belly.
+  ctx.save();
+  ctx.clip(path);
+  const g = ctx.createLinearGradient(0, 90, 0, 160);
+  g.addColorStop(0, "rgba(154,150,143,0)");
+  g.addColorStop(1, "rgba(154,150,143,0.75)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 60, 440, 110);
+  ctx.restore();
+  paperTexture(ctx, 440, 200, r, { strength: 1.2 });
+  return lay;
 }
 
-function drawTown(ctx, x0, ground, r) {
-  const items = [
-    [0, 40, 30, 14], [46, 30, 22, 12], [84, 54, 40, 18], [146, 34, 26, 12],
-    [300, 46, 34, 16], [356, 60, 46, 18], [420, 32, 24, 12], [470, 44, 32, 14], [530, 38, 28, 14],
-  ];
-  // Church with a tall steeple.
-  const cx = x0 + 210;
-  const cb = ground(cx) + 8;
-  house(ctx, cx, cb, 40, 40, 22, r);
-  ctx.fillStyle = C.paper;
-  ctx.fillRect(cx + 12, cb - 86, 16, 46);
-  ctx.strokeStyle = C.slate;
-  ctx.lineWidth = 1.3;
-  ctx.strokeRect(cx + 12, cb - 86, 16, 46);
+// ---------------------------------------------------------------- far hills and lighthouse
+
+function paintHills(res) {
+  const h = HORIZON - HILLS_TOP - HILLS_OFF + 6;
+  const lay = makeLayer(HILLS_W, h + HILLS_OFF, res);
+  const { ctx } = lay;
+  ctx.translate(0, HILLS_OFF);
+  const r = rng(23);
+  const ridge1 = (x) => 140 + periodic(x, HILLS_W, [[30, 2, 0.4], [16, 5, 1.6], [6, 11, 0.3]]);
+  const ridge2 = (x) => 200 + periodic(x, HILLS_W, [[20, 3, 2.2], [10, 7, 0.1], [4, 13, 1.1]]);
+
+  const hill = (fn, fill, ink, lw) => {
+    const p = new Path2D();
+    p.moveTo(0, h);
+    for (let x = 0; x <= HILLS_W; x += 12) p.lineTo(x, fn(x));
+    p.lineTo(HILLS_W, h);
+    p.closePath();
+    wash(ctx, p, fill, C.slate, { dir: "down", strength: 0.35, x: 0, y: 60, w: HILLS_W, h: h - 60 });
+    const pts = [];
+    for (let x = 0; x <= HILLS_W; x += 12) pts.push([x, fn(x)]);
+    line(ctx, ink, lw);
+    smoothPath(ctx, pts);
+    ctx.stroke();
+  };
+  hill(ridge1, C.ash, C.slate, 2);
+
+  // A rocky headland with a lighthouse, keeper's cottage, fence and path.
+  const lx = 1150;
+  const cliff = new Path2D();
+  cliff.moveTo(lx - 260, h);
+  cliff.bezierCurveTo(lx - 230, 140, lx - 170, 82, lx - 70, 76);
+  cliff.lineTo(lx + 120, 74);
+  cliff.bezierCurveTo(lx + 190, 80, lx + 210, 130, lx + 240, 170);
+  cliff.bezierCurveTo(lx + 260, 220, lx + 300, 250, lx + 340, h);
+  cliff.closePath();
+  wash(ctx, cliff, C.silver, C.slate, { dir: "right", strength: 0.5, x: lx - 260, y: 70, w: 600, h: h - 70 });
+  // Grass and scattered rocks on the headland.
+  ctx.save();
+  ctx.clip(cliff);
+  line(ctx, C.slate, 1);
+  ctx.globalAlpha = 0.6;
   ctx.beginPath();
-  ctx.moveTo(cx + 10, cb - 86);
-  ctx.lineTo(cx + 20, cb - 126);
-  ctx.lineTo(cx + 30, cb - 86);
+  for (let i = 0; i < 420; i++) {
+    const gx = lx - 240 + r() * 560;
+    const gy = 80 + r() * (h - 80);
+    ctx.moveTo(gx, gy);
+    ctx.lineTo(gx + r.range(-1, 2), gy - r.range(2, 5));
+  }
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  for (let i = 0; i < 26; i++) {
+    const rx = lx + 100 + r() * 220;
+    const ry = 120 + r() * (h - 130);
+    const rs = r.range(4, 10);
+    const rock = new Path2D();
+    rock.moveTo(rx - rs, ry);
+    rock.quadraticCurveTo(rx - rs * 0.8, ry - rs * 0.9, rx, ry - rs);
+    rock.quadraticCurveTo(rx + rs, ry - rs * 0.7, rx + rs, ry);
+    rock.closePath();
+    wash(ctx, rock, C.ash, C.ink, { dir: "right", strength: 0.5, x: rx - rs, y: ry - rs, w: rs * 2, h: rs });
+    line(ctx, C.slate, 1);
+    ctx.stroke(rock);
+  }
+  ctx.restore();
+  line(ctx, C.charcoal, 2);
+  ctx.stroke(cliff);
+  // Rock strata.
+  line(ctx, C.ash, 1.4);
+  ctx.beginPath();
+  for (let i = 0; i < 9; i++) {
+    const y = 110 + i * 22;
+    const x0 = lx + 120 + i * 18 + r.range(-6, 6);
+    ctx.moveTo(x0, y);
+    ctx.quadraticCurveTo(x0 + 30, y + 10, x0 + 56, y + 6);
+  }
+  ctx.stroke();
+  // Winding path down the hill.
+  line(ctx, C.paper, 3);
+  ctx.beginPath();
+  ctx.moveTo(lx + 10, 78);
+  ctx.bezierCurveTo(lx + 80, 96, lx - 10, 116, lx + 60, 136);
+  ctx.bezierCurveTo(lx + 120, 152, lx + 80, 176, lx + 150, 196);
+  ctx.stroke();
+  // Fence along the path.
+  line(ctx, C.slate, 1.3);
+  ctx.beginPath();
+  for (let i = 0; i < 12; i++) {
+    const x = lx + 90 + i * 16;
+    const y = 112 + i * 9;
+    ctx.moveTo(x, y);
+    ctx.lineTo(x, y - 9);
+  }
+  ctx.moveTo(lx + 90, 106);
+  ctx.lineTo(lx + 266, 205);
+  ctx.stroke();
+  // Lighthouse.
+  const tx = lx + 20;
+  const tower = new Path2D();
+  tower.moveTo(tx - 14, 78);
+  tower.lineTo(tx - 9, 4);
+  tower.lineTo(tx + 9, 4);
+  tower.lineTo(tx + 14, 78);
+  tower.closePath();
+  ctx.fillStyle = C.paper;
+  ctx.fill(tower);
+  ctx.save();
+  ctx.clip(tower);
+  ctx.fillStyle = C.ash;
+  for (const y of [18, 42, 64]) ctx.fillRect(tx - 20, y, 40, 9);
+  ctx.restore();
+  line(ctx, C.slate, 1.8);
+  ctx.stroke(tower);
+  ctx.fillStyle = C.paper;
+  ctx.fillRect(tx - 8, -10, 16, 14);
+  ctx.strokeRect(tx - 8, -10, 16, 14);
+  ctx.beginPath();
+  ctx.moveTo(tx - 11, -10);
+  ctx.lineTo(tx, -22);
+  ctx.lineTo(tx + 11, -10);
+  ctx.closePath();
+  ctx.fillStyle = C.slate;
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(tx - 13, 4);
+  ctx.lineTo(tx + 13, 4);
+  ctx.stroke();
+  // Keeper's cottage.
+  const cx = lx + 46;
+  ctx.fillStyle = C.paper;
+  ctx.fillRect(cx, 56, 40, 22);
+  ctx.strokeRect(cx, 56, 40, 22);
+  ctx.beginPath();
+  ctx.moveTo(cx - 4, 56);
+  ctx.lineTo(cx + 20, 40);
+  ctx.lineTo(cx + 44, 56);
   ctx.closePath();
   ctx.fillStyle = C.ash;
   ctx.fill();
   ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(cx + 20, cb - 74, 4, 0, TAU);
-  ctx.stroke();
-  for (const [dx, w, h, roof] of items) {
-    const x = x0 + dx;
-    house(ctx, x, ground(x + w / 2) + 10, w, h, roof, r, { fill: r() < 0.5 ? C.paper : C.silver });
-  }
-  // Mill chimney with a curl of smoke.
-  const mx = x0 + 600;
-  const mb = ground(mx) + 10;
-  house(ctx, mx, mb, 70, 34, 10, r, { fill: C.silver });
-  ctx.fillStyle = C.ash;
-  ctx.fillRect(mx + 50, mb - 92, 10, 60);
-  ctx.strokeStyle = C.slate;
-  ctx.strokeRect(mx + 50, mb - 92, 10, 60);
-  for (let i = 0; i < 5; i++) {
+  windowPane(ctx, cx + 8, 62, 8, 8, C.slate, 1);
+  windowPane(ctx, cx + 24, 62, 8, 8, C.slate, 1);
+
+  hill(ridge2, C.silver, C.slate, 2);
+  // Fields, hedgerows and tree clumps on the nearer slopes.
+  const near = new Path2D();
+  near.moveTo(0, h);
+  for (let x = 0; x <= HILLS_W; x += 12) near.lineTo(x, ridge2(x));
+  near.lineTo(HILLS_W, h);
+  near.closePath();
+  ctx.save();
+  ctx.clip(near);
+  // Curving field furrows.
+  line(ctx, C.ash, 1);
+  for (let x = 0; x < HILLS_W; x += r.range(160, 320)) {
+    const y0 = ridge2(x) + 14;
     ctx.beginPath();
-    ctx.arc(mx + 52 - i * 14, mb - 102 - i * 9, 7 + i * 3, 0, TAU);
-    ctx.fillStyle = C.paper;
-    ctx.fill();
-    ctx.strokeStyle = C.ash;
-    ctx.lineWidth = 1.2;
+    for (let k = 0; k < 5; k++) {
+      ctx.moveTo(x, y0 + k * 9);
+      ctx.bezierCurveTo(x + 60, y0 + k * 9 - 8, x + 120, y0 + k * 11 + 6, x + 190, y0 + k * 12);
+    }
     ctx.stroke();
   }
-}
-
-function drawWindmill(ctx, x, base, r) {
-  ctx.fillStyle = C.paper;
+  // Grass ticks.
+  line(ctx, C.slate, 1);
+  ctx.globalAlpha = 0.55;
   ctx.beginPath();
-  ctx.moveTo(x - 12, base);
-  ctx.lineTo(x - 6, base - 60);
-  ctx.lineTo(x + 6, base - 60);
-  ctx.lineTo(x + 12, base);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = C.slate;
-  ctx.lineWidth = 1.4;
-  ctx.stroke();
-  for (let i = 0; i < 4; i++) {
-    const a = i * (TAU / 4) + 0.4;
-    ctx.save();
-    ctx.translate(x, base - 60);
-    ctx.rotate(a);
-    ctx.fillStyle = C.silver;
-    ctx.fillRect(2, -4, 34, 8);
-    ctx.strokeRect(2, -4, 34, 8);
-    ctx.restore();
+  for (let i = 0; i < 900; i++) {
+    const x = r() * HILLS_W;
+    const y = ridge2(x) + 4 + r() ** 1.5 * 80;
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + r.range(-1, 2), y - r.range(2, 5));
   }
-  ctx.beginPath();
-  ctx.arc(x, base - 60, 3, 0, TAU);
-  ctx.fillStyle = C.slate;
-  ctx.fill();
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.restore();
+  for (let x = 30; x < HILLS_W - 30; x += r.range(50, 140)) {
+    if (x > lx - 280 && x < lx + 360) continue;
+    const y = ridge2(x) + 4;
+    const s = r.range(9, 18);
+    treeClump(ctx, [[x, y - s * 0.6, s * 1.2, s], [x + s, y - s * 0.3, s * 0.8, s * 0.7], [x - s * 0.7, y - s * 0.2, s * 0.6, s * 0.5]], r, { fill: C.silver, ink: C.slate, lw: 1.3 });
+  }
+  ctx.setTransform(res, 0, 0, res, 0, 0);
+  paperTexture(ctx, HILLS_W, h + HILLS_OFF, r, { strength: 1.2 });
+  return lay;
 }
 
-function drawWaterTower(ctx, x, base, r) {
-  ctx.strokeStyle = C.slate;
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(x - 14, base);
-  ctx.lineTo(x - 10, base - 50);
-  ctx.moveTo(x + 14, base);
-  ctx.lineTo(x + 10, base - 50);
-  ctx.moveTo(x - 13, base - 10);
-  ctx.lineTo(x + 11, base - 40);
-  ctx.moveTo(x + 13, base - 10);
-  ctx.lineTo(x - 11, base - 40);
-  ctx.stroke();
-  ctx.fillStyle = C.paper;
-  ctx.fillRect(x - 18, base - 78, 36, 28);
-  ctx.strokeRect(x - 18, base - 78, 36, 28);
-  ctx.beginPath();
-  ctx.moveTo(x - 20, base - 78);
-  ctx.lineTo(x, base - 92);
-  ctx.lineTo(x + 20, base - 78);
-  ctx.closePath();
-  ctx.fillStyle = C.ash;
-  ctx.fill();
-  ctx.stroke();
-}
+// ---------------------------------------------------------------- far-shore town
 
-// ---------------------------------------------------------------- levee bank
-
-function paintMid(res) {
-  const lay = makeLayer(MID_W, WATER - MID_TOP + 14, res);
+function paintTown(res) {
+  const h = HORIZON - TOWN_TOP + 14;
+  const lay = makeLayer(TOWN_W, h, res);
   const { ctx } = lay;
   const r = rng(57);
-  const top = (x) => 372 + periodic(x, MID_W, [[6, 3, 0.4], [4, 8, 1.3], [2, 17, 0.2]]);
+  const WL = HORIZON - TOWN_TOP; // waterline in layer coordinates
+  const ink = C.charcoal;
 
-  // Trees behind the levee crest.
-  const treeXs = [];
-  for (let x = 120; x < MID_W - 140; x += r.range(250, 420)) treeXs.push(x);
-  for (const x of treeXs) drawOak(ctx, x, top(x) + 4, r, r.range(0.75, 1.15));
+  // Groves of trees behind the buildings, in irregular clusters.
+  for (let x = 20; x < TOWN_W - 40; x += r.range(90, 260)) {
+    const n = 2 + Math.floor(r() * 4);
+    for (let k = 0; k < n; k++) {
+      const s = r.range(14, 30);
+      const tx = x + k * s * 1.1 + r.range(-6, 6);
+      const ty = WL - 16 - r.range(14, 40);
+      treeClump(ctx, [
+        [tx, ty - s * 0.4, s, s * 0.9],
+        [tx - s * 0.6, ty + s * 0.2, s * 0.7, s * 0.6],
+        [tx + s * 0.7, ty + s * 0.25, s * 0.75, s * 0.6],
+        [tx + s * 0.1, ty - s * 1.0, s * 0.55, s * 0.5],
+      ], r, { fill: k % 2 ? C.silver : C.ash, trunk: [tx, ty + s * 0.5, WL - 16], lw: 1.4 });
+    }
+  }
 
-  // Levee face.
-  const face = new Path2D();
-  face.moveTo(0, lay.h);
-  const pts = [];
-  for (let x = 0; x <= MID_W; x += 12) pts.push([x, top(x)]);
-  for (const [x, y] of pts) face.lineTo(x, y);
-  face.lineTo(MID_W, lay.h);
-  face.closePath();
+  // Shore embankment.
   ctx.fillStyle = C.ash;
-  ctx.fill(face);
-  ctx.save();
-  ctx.clip(face);
-  // Grassy strokes down the slope, sparse near the crest.
-  for (let i = 0; i < 1300; i++) {
-    const x = r() * MID_W;
-    const y = top(x) + 8 + r() ** 0.7 * 60;
-    ctx.strokeStyle = r() < 0.6 ? C.slate : C.silver;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(x + r.range(-2, 3), y - r.range(3, 7));
-    ctx.stroke();
-  }
-  // Muddy waterline band.
-  ctx.fillStyle = C.slate;
-  ctx.fillRect(0, lay.h - 30, MID_W, 30);
-  hatch(ctx, 0, lay.h - 40, MID_W, 40, r, { gap: 4, lw: 1, color: C.charcoal, angle: -0.15, density: 0.7 });
-  ctx.restore();
-  pen(ctx, pts, r, { w: 2.5, color: C.charcoal, amp: 1 });
-  // Grass tufts on the crest.
-  for (let x = 6; x < MID_W; x += r.range(10, 26)) {
-    const y = top(x) + 1;
-    for (let k = 0; k < 3; k++) brush(ctx, [[x + k * 3, y], [x + k * 3 + r.range(-3, 4), y - r.range(6, 12)]], r, { w: 2, color: C.charcoal });
-  }
+  ctx.fillRect(0, WL - 16, TOWN_W, 16);
+  line(ctx, ink, 1.6);
+  ctx.beginPath();
+  ctx.moveTo(0, WL - 16);
+  ctx.lineTo(TOWN_W, WL - 16);
+  ctx.stroke();
 
-  // Props along the levee.
-  let px = 260;
-  const props = [drawCabin, drawBales, drawFence, drawLamp, drawCabin, drawBarrels, drawFence, drawBales, drawLamp];
-  let pi = 0;
-  while (px < MID_W - 260) {
-    props[pi % props.length](ctx, px, top(px) + 4, r);
-    pi++;
-    px += r.range(300, 460);
+  // Buildings, wharves, a water tower, a church spire, a crane.
+  const items = ["houses", "tower", "warehouse", "houses", "church", "pier", "houses", "crane", "houses", "factory", "houses", "pier"];
+  let x = 60;
+  let i = 0;
+  while (x < TOWN_W - 260) {
+    const kind = items[i++ % items.length];
+    x += drawTownPiece(ctx, kind, x, WL - 16, r, ink) + r.range(20, 70);
   }
-
-  // Reeds at the water's edge.
-  for (let x = 10; x < MID_W - 10; x += r.range(40, 120)) reedClump(ctx, x, lay.h - 6, r, 0.7, C.charcoal);
+  paperTexture(ctx, TOWN_W, h, r, { strength: 1.1 });
   return lay;
 }
 
-function drawOak(ctx, x, base, r, s) {
-  // Trunk: a tapered, slightly twisted brush shape with bark lines.
-  const h = 150 * s;
-  const lean = r.range(-14, 14) * s;
-  const trunk = new Path2D();
-  trunk.moveTo(x - 14 * s, base);
-  trunk.bezierCurveTo(x - 10 * s, base - h * 0.4, x - 8 * s + lean, base - h * 0.7, x - 5 * s + lean, base - h);
-  trunk.lineTo(x + 6 * s + lean, base - h);
-  trunk.bezierCurveTo(x + 9 * s + lean, base - h * 0.7, x + 10 * s, base - h * 0.4, x + 16 * s, base);
-  trunk.closePath();
-  ctx.fillStyle = C.slate;
-  ctx.fill(trunk);
+function gableHouse(ctx, x, base, w, hgt, r, ink) {
+  const y = base - hgt;
+  const body = rectPath(x, y, w, hgt);
+  wash(ctx, body, r() < 0.5 ? C.paper : C.silver, C.ash, { dir: "right", strength: 0.7, x, y, w, h: hgt });
+  // Clapboard siding.
   ctx.save();
-  ctx.clip(trunk);
-  hatch(ctx, x - 20 * s, base - h, 40 * s + Math.abs(lean), h, r, { gap: 3, lw: 1, color: C.charcoal, angle: 1.45 });
-  ctx.restore();
-  ctx.strokeStyle = C.charcoal;
-  ctx.lineWidth = 2;
-  ctx.stroke(trunk);
-  // Branches.
-  for (let i = 0; i < 4; i++) {
-    const by = base - h * r.range(0.55, 0.9);
-    const dir = i % 2 === 0 ? -1 : 1;
-    brush(ctx, [[x + lean * 0.6, by], [x + lean * 0.6 + dir * 26 * s, by - 20 * s], [x + lean + dir * 52 * s, by - 46 * s]], r, { w: 7 * s, color: C.charcoal, taper: 0.8 });
-  }
-  // Foliage crown made of several scribbled clumps.
-  const cy = base - h - 30 * s;
-  const clumps = [
-    [0, 0, 70, 46], [-62, 22, 50, 36], [62, 20, 52, 36], [-30, -34, 48, 34], [34, -30, 46, 32], [0, 34, 56, 30],
-  ];
-  for (const [dx, dy, rx, ry] of clumps) {
-    foliage(ctx, x + lean + dx * s, cy + dy * s, rx * s, ry * s, r, { fill: C.silver, dark: C.ash, line: C.slate, lw: 1.5 });
-  }
-  // Hanging moss.
-  ctx.strokeStyle = C.ash;
-  ctx.lineWidth = 1.4;
-  for (let i = 0; i < 9; i++) {
-    const mx = x + lean + r.range(-80, 80) * s;
-    const my = cy + r.range(20, 50) * s;
-    const len = r.range(20, 50) * s;
-    ctx.beginPath();
-    ctx.moveTo(mx, my);
-    ctx.bezierCurveTo(mx + 4, my + len * 0.3, mx - 4, my + len * 0.7, mx + r.range(-3, 3), my + len);
-    ctx.stroke();
-  }
-}
-
-function drawCabin(ctx, x, base, r) {
-  const w = 120;
-  const h = 64;
-  const y = base - h - 18;
-  // Stilts.
-  ctx.fillStyle = C.charcoal;
-  for (const sx of [x + 6, x + 40, x + 80, x + w - 12]) ctx.fillRect(sx, y + h, 6, 24);
-  // Board walls with vertical planks.
-  ctx.fillStyle = C.silver;
-  ctx.fillRect(x, y, w, h);
-  ctx.strokeStyle = C.ash;
-  ctx.lineWidth = 1;
+  ctx.clip(body);
+  line(ctx, C.ash, 0.8);
   ctx.beginPath();
-  for (let px = x + 9; px < x + w; px += 9) {
-    ctx.moveTo(px + r.range(-0.5, 0.5), y + 2);
-    ctx.lineTo(px + r.range(-0.5, 0.5), y + h);
+  for (let yy = y + 4; yy < base; yy += 4) {
+    ctx.moveTo(x, yy);
+    ctx.lineTo(x + w, yy);
   }
   ctx.stroke();
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(x, y, w, h);
-  ctx.clip();
-  hatch(ctx, x, y, w, 18, r, { gap: 3, lw: 0.9, color: C.slate, angle: 0.15 });
   ctx.restore();
-  // Door and a shuttered window.
-  ctx.fillStyle = C.charcoal;
-  ctx.fillRect(x + 20, y + 22, 22, h - 22);
-  ctx.fillStyle = C.paper;
-  ctx.fillRect(x + 70, y + 20, 26, 20);
-  ctx.strokeStyle = C.charcoal;
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(x + 70, y + 20, 26, 20);
-  ctx.beginPath();
-  ctx.moveTo(x + 83, y + 20);
-  ctx.lineTo(x + 83, y + 40);
-  ctx.moveTo(x + 70, y + 30);
-  ctx.lineTo(x + 96, y + 30);
-  ctx.stroke();
-  ctx.fillStyle = C.slate;
-  ctx.fillRect(x + 62, y + 18, 7, 24);
-  ctx.fillRect(x + 97, y + 18, 7, 24);
-  pen(ctx, [[x, y + h], [x, y], [x + w, y], [x + w, y + h], [x, y + h]], r, { w: 2, color: C.charcoal, amp: 0.8 });
-  // Tin roof with ridges and a stovepipe.
+  line(ctx, ink, 1.7);
+  ctx.stroke(body);
+  const roofH = w * 0.45;
   const roof = new Path2D();
-  roof.moveTo(x - 12, y + 4);
-  roof.lineTo(x + 18, y - 34);
-  roof.lineTo(x + w - 10, y - 34);
-  roof.lineTo(x + w + 14, y + 4);
+  roof.moveTo(x - 5, y + 1);
+  roof.lineTo(x + w / 2, y - roofH);
+  roof.lineTo(x + w + 5, y + 1);
   roof.closePath();
-  ctx.fillStyle = C.ash;
-  ctx.fill(roof);
+  wash(ctx, roof, C.ash, C.slate, { dir: "right", strength: 0.6, x: x - 5, y: y - roofH, w: w + 10, h: roofH });
+  // Shingle courses.
   ctx.save();
   ctx.clip(roof);
-  ctx.strokeStyle = C.slate;
-  ctx.lineWidth = 1.2;
+  line(ctx, C.slate, 0.8);
   ctx.beginPath();
-  for (let rx = x - 20; rx < x + w + 30; rx += 7) {
-    ctx.moveTo(rx, y + 6);
-    ctx.lineTo(rx + 10, y - 36);
+  for (let yy = y - roofH + 4, row = 0; yy < y + 2; yy += 4, row++) {
+    ctx.moveTo(x - 6, yy);
+    ctx.lineTo(x + w + 6, yy);
+    for (let xx = x - 6 + (row % 2) * 3; xx < x + w + 6; xx += 6) {
+      ctx.moveTo(xx, yy);
+      ctx.lineTo(xx, yy - 4);
+    }
   }
   ctx.stroke();
   ctx.restore();
-  ctx.strokeStyle = C.charcoal;
-  ctx.lineWidth = 2;
+  line(ctx, ink, 1.7);
   ctx.stroke(roof);
-  ctx.fillStyle = C.charcoal;
-  ctx.fillRect(x + w - 34, y - 54, 8, 26);
-  for (let i = 0; i < 4; i++) {
-    ctx.beginPath();
-    ctx.arc(x + w - 30 - i * 9, y - 62 - i * 9, 5 + i * 2.5, 0, TAU);
-    ctx.fillStyle = C.paper;
-    ctx.fill();
-    ctx.strokeStyle = C.ash;
-    ctx.lineWidth = 1.2;
-    ctx.stroke();
+  if (r() < 0.6) {
+    const cx = x + w * 0.7;
+    const ch = rectPath(cx, y - roofH * 0.8, 6, roofH * 0.6);
+    wash(ctx, ch, C.ash, null);
+    ctx.stroke(ch);
+    if (r() < 0.4) {
+      for (let k = 0; k < 3; k++) {
+        ctx.beginPath();
+        ctx.arc(cx + 3 + k * 5, y - roofH * 0.8 - 5 - k * 6, 3 + k * 1.5, 0, TAU);
+        ctx.fillStyle = C.paper;
+        ctx.fill();
+        line(ctx, C.ash, 0.9);
+        ctx.stroke();
+      }
+    }
   }
-  // Porch rail.
-  ctx.strokeStyle = C.charcoal;
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(x + w, y + h - 18);
-  ctx.lineTo(x + w + 34, y + h - 18);
-  for (let px = x + w + 6; px <= x + w + 34; px += 7) {
-    ctx.moveTo(px, y + h - 18);
-    ctx.lineTo(px, y + h);
+  const cols = Math.max(1, Math.floor(w / 16));
+  const rows = Math.max(1, Math.floor((hgt - 14) / 16));
+  for (let c = 0; c < cols; c++) {
+    for (let rr = 0; rr < rows; rr++) {
+      windowPane(ctx, x + 5 + c * ((w - 10) / cols) + 1, y + 5 + rr * 15, 7, 8, ink, 0.8);
+    }
   }
-  ctx.moveTo(x + w, y + h);
-  ctx.lineTo(x + w + 34, y + h);
-  ctx.stroke();
+  // Front door.
+  const dx = x + (cols > 1 ? w / 2 - 4 : w - 12);
+  const door = rectPath(dx, base - 12, 8, 12);
+  wash(ctx, door, C.slate, null);
+  line(ctx, ink, 1);
+  ctx.stroke(door);
 }
 
-function drawBales(ctx, x, base, r) {
-  const bale = (bx, by, w, h) => {
-    ctx.fillStyle = C.paper;
+function drawTownPiece(ctx, kind, x, base, r, ink) {
+  if (kind === "houses") {
+    let w = 0;
+    const n = 2 + Math.floor(r() * 3);
+    for (let k = 0; k < n; k++) {
+      const bw = r.range(30, 52);
+      gableHouse(ctx, x + w, base, bw, r.range(26, 46), r, ink);
+      w += bw + r.range(2, 8);
+    }
+    return w;
+  }
+  if (kind === "warehouse") {
+    const w = 120;
+    const hgt = 40;
+    const body = rectPath(x, base - hgt, w, hgt);
+    wash(ctx, body, C.paper, C.ash, { dir: "right", strength: 0.6, x, y: base - hgt, w, h: hgt });
+    line(ctx, ink, 1.5);
+    ctx.stroke(body);
+    const roof = new Path2D();
+    roof.moveTo(x - 4, base - hgt);
+    roof.lineTo(x + 10, base - hgt - 14);
+    roof.lineTo(x + w - 10, base - hgt - 14);
+    roof.lineTo(x + w + 4, base - hgt);
+    roof.closePath();
+    wash(ctx, roof, C.ash, C.slate, { dir: "down", strength: 0.4, x, y: base - hgt - 14, w, h: 14 });
+    ctx.stroke(roof);
+    ctx.fillStyle = C.silver;
+    ctx.fillRect(x + 20, base - hgt + 6, w - 40, 8); // blank sign band
+    ctx.strokeRect(x + 20, base - hgt + 6, w - 40, 8);
+    for (const dx of [14, 52, 90]) {
+      ctx.fillStyle = C.slate;
+      ctx.fillRect(x + dx, base - 22, 16, 22);
+      ctx.strokeRect(x + dx, base - 22, 16, 22);
+    }
+    return w;
+  }
+  if (kind === "tower") {
+    // Water tower on lattice legs.
+    line(ctx, ink, 1.6);
     ctx.beginPath();
-    ctx.roundRect ? ctx.roundRect(bx, by, w, h, 8) : ctx.rect(bx, by, w, h);
-    ctx.fill();
-    ctx.save();
-    ctx.clip();
-    hatch(ctx, bx + w * 0.6, by, w * 0.4, h, r, { gap: 3, lw: 0.9, color: C.ash, angle: 1.3 });
-    // Fluffy cotton texture.
-    ctx.strokeStyle = C.silver;
-    ctx.lineWidth = 1.2;
-    for (let i = 0; i < 18; i++) {
+    ctx.moveTo(x, base);
+    ctx.lineTo(x + 8, base - 70);
+    ctx.moveTo(x + 40, base);
+    ctx.lineTo(x + 32, base - 70);
+    for (let k = 0; k < 3; k++) {
+      const y0 = base - k * 23;
+      ctx.moveTo(x + 2 + k * 2.6, y0);
+      ctx.lineTo(x + 38 - (k + 1) * 2.6, y0 - 23);
+      ctx.moveTo(x + 38 - k * 2.6, y0);
+      ctx.lineTo(x + 2 + (k + 1) * 2.6, y0 - 23);
+      ctx.moveTo(x + k * 2.6, y0 - 23);
+      ctx.lineTo(x + 40 - k * 2.6, y0 - 23);
+    }
+    ctx.stroke();
+    const tank = rectPath(x - 2, base - 104, 44, 34);
+    wash(ctx, tank, C.paper, C.ash, { dir: "right", strength: 0.7, x: x - 2, y: base - 104, w: 44, h: 34 });
+    ctx.stroke(tank);
+    ctx.beginPath();
+    for (let k = 1; k < 5; k++) {
+      ctx.moveTo(x - 2 + k * 9, base - 104);
+      ctx.lineTo(x - 2 + k * 9, base - 70);
+    }
+    ctx.stroke();
+    const cone = new Path2D();
+    cone.moveTo(x - 6, base - 104);
+    cone.lineTo(x + 20, base - 124);
+    cone.lineTo(x + 46, base - 104);
+    cone.closePath();
+    wash(ctx, cone, C.ash, C.slate, { dir: "right", strength: 0.5, x: x - 6, y: base - 124, w: 52, h: 20 });
+    ctx.stroke(cone);
+    return 48;
+  }
+  if (kind === "church") {
+    gableHouse(ctx, x, base, 46, 40, r, ink);
+    const sx = x + 16;
+    const st = rectPath(sx, base - 80, 14, 40);
+    wash(ctx, st, C.paper, C.ash, { dir: "right", strength: 0.6, x: sx, y: base - 80, w: 14, h: 40 });
+    line(ctx, ink, 1.5);
+    ctx.stroke(st);
+    const spire = new Path2D();
+    spire.moveTo(sx - 2, base - 80);
+    spire.lineTo(sx + 7, base - 126);
+    spire.lineTo(sx + 16, base - 80);
+    spire.closePath();
+    wash(ctx, spire, C.ash, C.slate, { dir: "right", strength: 0.5, x: sx, y: base - 126, w: 16, h: 46 });
+    ctx.stroke(spire);
+    ctx.beginPath();
+    ctx.arc(sx + 7, base - 68, 3.5, 0, TAU);
+    ctx.stroke();
+    return 50;
+  }
+  if (kind === "factory") {
+    gableHouse(ctx, x, base, 70, 34, r, ink);
+    const st = rectPath(x + 74, base - 92, 10, 92);
+    wash(ctx, st, C.ash, C.slate, { dir: "right", strength: 0.6, x: x + 74, y: base - 92, w: 10, h: 92 });
+    line(ctx, ink, 1.4);
+    ctx.stroke(st);
+    for (let k = 0; k < 4; k++) {
       ctx.beginPath();
-      ctx.arc(bx + r() * w, by + r() * h, 3 + r() * 3, 0, 3);
+      ctx.arc(x + 80 + k * 10, base - 102 - k * 10, 6 + k * 3, 0, TAU);
+      ctx.fillStyle = C.paper;
+      ctx.fill();
+      line(ctx, C.ash, 1.2);
       ctx.stroke();
     }
-    ctx.restore();
-    ctx.strokeStyle = C.charcoal;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    // Bands.
-    ctx.lineWidth = 2.4;
-    ctx.beginPath();
-    for (const k of [0.25, 0.55, 0.85]) {
-      ctx.moveTo(bx + w * k, by + 1);
-      ctx.lineTo(bx + w * k + 2, by + h - 1);
-    }
-    ctx.stroke();
-  };
-  bale(x, base - 40, 56, 40);
-  bale(x + 58, base - 40, 56, 40);
-  bale(x + 28, base - 78, 56, 38);
-}
-
-function drawFence(ctx, x, base, r) {
-  for (let i = 0; i < 7; i++) {
-    const px = x + i * 26;
-    brush(ctx, [[px, base + 2], [px + r.range(-2, 2), base - 36 - r.range(0, 6)]], r, { w: 5, color: C.charcoal, taper: 0.3 });
+    return 90;
   }
-  for (const yy of [-28, -14]) {
-    brush(ctx, [[x - 6, base + yy + r.range(-2, 2)], [x + 80, base + yy + r.range(-2, 2)], [x + 166, base + yy + r.range(-3, 3)]], r, { w: 3.5, color: C.slate, taper: 0.2 });
-  }
-}
-
-function drawLamp(ctx, x, base, r) {
-  brush(ctx, [[x, base], [x, base - 100]], r, { w: 5, color: C.charcoal, taper: 0.2 });
-  brush(ctx, [[x, base - 96], [x + 20, base - 104], [x + 30, base - 96]], r, { w: 3, color: C.charcoal, taper: 0.3 });
-  ctx.fillStyle = C.paper;
-  ctx.strokeStyle = C.charcoal;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(x + 22, base - 94);
-  ctx.lineTo(x + 38, base - 94);
-  ctx.lineTo(x + 35, base - 74);
-  ctx.lineTo(x + 25, base - 74);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-}
-
-function drawBarrels(ctx, x, base, r) {
-  for (const [bx, by] of [[0, 0], [34, 0], [17, -38]]) {
-    const cx = x + bx;
-    const cy = base + by;
-    const p = new Path2D();
-    p.moveTo(cx, cy);
-    p.bezierCurveTo(cx - 5, cy - 14, cx - 5, cy - 24, cx, cy - 38);
-    p.lineTo(cx + 30, cy - 38);
-    p.bezierCurveTo(cx + 35, cy - 24, cx + 35, cy - 14, cx + 30, cy);
-    p.closePath();
-    ctx.fillStyle = C.silver;
-    ctx.fill(p);
-    ctx.save();
-    ctx.clip(p);
-    hatch(ctx, cx + 18, cy - 40, 16, 42, r, { gap: 2.6, lw: 0.9, color: C.slate, angle: 1.4 });
+  if (kind === "pier" || kind === "crane") {
+    // A wharf on pilings reaching into the water, stacked with cargo.
+    const w = kind === "crane" ? 150 : 120;
+    const deckY = base + 6;
+    line(ctx, ink, 1.5);
     ctx.fillStyle = C.slate;
-    ctx.fillRect(cx - 6, cy - 31, 44, 4);
-    ctx.fillRect(cx - 6, cy - 11, 44, 4);
-    ctx.restore();
-    ctx.strokeStyle = C.charcoal;
-    ctx.lineWidth = 1.8;
-    ctx.stroke(p);
-  }
-}
-
-function reedClump(ctx, x, base, r, s, color) {
-  const n = 4 + Math.floor(r() * 5);
-  for (let i = 0; i < n; i++) {
-    const h = r.range(20, 50) * s;
-    const bend = r.range(-12, 12) * s;
-    brush(ctx, [[x + i * 3, base], [x + i * 3 + bend * 0.3, base - h * 0.6], [x + i * 3 + bend, base - h]], r, { w: 3 * s + 1, color });
-    if (r() < 0.25) {
-      // Cattail head.
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.ellipse(x + i * 3 + bend * 0.85, base - h * 0.85, 2.6 * s + 1, 7 * s + 2, bend * 0.02, 0, TAU);
-      ctx.fill();
+    for (let px = x + 4; px < x + w; px += 18) {
+      ctx.fillRect(px, deckY, 4, 22);
     }
+    const deck = rectPath(x, deckY - 5, w, 6);
+    wash(ctx, deck, C.silver, null);
+    ctx.stroke(deck);
+    // Crates and a barrel on the deck.
+    for (let k = 0; k < 3; k++) {
+      const cw = r.range(12, 18);
+      const cx = x + 10 + k * 22;
+      const cr = rectPath(cx, deckY - 5 - cw, cw, cw);
+      wash(ctx, cr, C.paper, C.ash, { dir: "right", strength: 0.6, x: cx, y: deckY - 5 - cw, w: cw, h: cw });
+      ctx.stroke(cr);
+      ctx.beginPath();
+      ctx.moveTo(cx, deckY - 5 - cw);
+      ctx.lineTo(cx + cw, deckY - 5);
+      ctx.moveTo(cx + cw, deckY - 5 - cw);
+      ctx.lineTo(cx, deckY - 5);
+      ctx.stroke();
+    }
+    if (kind === "crane") {
+      const bx = x + w - 40;
+      ctx.beginPath();
+      ctx.moveTo(bx, deckY - 5);
+      ctx.lineTo(bx + 6, deckY - 70);
+      ctx.moveTo(bx + 18, deckY - 5);
+      ctx.lineTo(bx + 12, deckY - 70);
+      for (let k = 0; k < 5; k++) {
+        ctx.moveTo(bx + 1 + k, deckY - 5 - k * 13);
+        ctx.lineTo(bx + 17 - k, deckY - 18 - k * 13);
+      }
+      // Jib.
+      ctx.moveTo(bx + 8, deckY - 70);
+      ctx.lineTo(bx - 50, deckY - 96);
+      ctx.moveTo(bx + 12, deckY - 62);
+      ctx.lineTo(bx - 50, deckY - 96);
+      for (let k = 1; k < 6; k++) {
+        const u = k / 6;
+        ctx.moveTo(bx + 8 - 58 * u, deckY - 70 - 26 * u);
+        ctx.lineTo(bx + 12 - 62 * u, deckY - 62 - 34 * u);
+      }
+      // Hook line.
+      ctx.moveTo(bx - 48, deckY - 95);
+      ctx.lineTo(bx - 48, deckY - 50);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(bx - 48, deckY - 46, 4, 0, Math.PI);
+      ctx.stroke();
+      const cab = rectPath(bx - 2, deckY - 40, 22, 18);
+      wash(ctx, cab, C.silver, C.ash, { dir: "right", strength: 0.5, x: bx, y: deckY - 40, w: 22, h: 18 });
+      ctx.stroke(cab);
+    }
+    return w;
   }
+  return 40;
 }
 
-// ---------------------------------------------------------------- river
+// ---------------------------------------------------------------- river bands
 
-function paintWater(res) {
-  const lay = makeLayer(WATER_W, H - WATER, res);
+function paintBand(res, top, bottom, parallax, size, seed) {
+  const bw = 1600;
+  const h = bottom - top;
+  const lay = makeLayer(bw, h, res);
   const { ctx } = lay;
-  const r = rng(71);
-  const g = ctx.createLinearGradient(0, 0, 0, lay.h);
-  g.addColorStop(0, C.slate);
-  g.addColorStop(0.55, C.slate);
-  g.addColorStop(1, C.charcoal);
+  const r = rng(seed * 31);
+  // Water gets darker toward the viewer.
+  const depth = (y) => (top + y - HORIZON) / (H - HORIZON);
+  const g = ctx.createLinearGradient(0, 0, 0, h);
+  const shade = (d) => (d < 0.25 ? C.silver : d < 0.55 ? C.ash : C.slate);
+  g.addColorStop(0, shade(depth(0)));
+  g.addColorStop(1, shade(depth(h)));
   ctx.fillStyle = g;
-  ctx.fillRect(0, 0, WATER_W, lay.h);
-  // Reflection band of the bank, broken into horizontal strokes.
-  for (let y = 2; y < 30; y += 3) {
-    for (let x = r() * 30; x < WATER_W; x += r.range(20, 70)) {
-      const len = r.range(12, 46);
+  ctx.fillRect(0, 0, bw, h);
+  if (top === HORIZON) {
+    // Soft reflections of the far shore just below its waterline.
+    for (let i = 0; i < 160; i++) {
+      const x = r() * bw;
+      const y = r() * 18;
+      ctx.fillStyle = r() < 0.5 ? C.ash : C.paper;
+      ctx.globalAlpha = 0.5;
+      ctx.fillRect(x, y, r.range(10, 40), 1.5);
+    }
+    ctx.globalAlpha = 1;
+  }
+  // Little white wave marks with a dark lip underneath, smaller with distance.
+  const rows = Math.round(h / (size * 2.2));
+  for (let row = 0; row < rows; row++) {
+    const y = ((row + 0.5) * h) / rows + r.range(-2, 2);
+    let s = size;
+    for (let x = r() * 120; x < bw - s * 3; x += s * (r() < 0.3 ? r.range(3, 5) : r.range(8, 22))) {
+      s = size * (0.6 + depth(y) * 0.6) * r.range(0.7, 1.35);
+      ctx.lineCap = "round";
       ctx.strokeStyle = C.charcoal;
-      ctx.globalAlpha = 0.5 * (1 - y / 30);
-      ctx.lineWidth = 2;
+      ctx.globalAlpha = 0.35;
+      ctx.lineWidth = Math.max(1, s * 0.16);
+      ctx.beginPath();
+      ctx.moveTo(x, y + s * 0.25);
+      ctx.quadraticCurveTo(x + s * 0.6, y - s * 0.15, x + s * 1.2, y + s * 0.25);
+      ctx.quadraticCurveTo(x + s * 1.8, y + s * 0.6, x + s * 2.4, y + s * 0.2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = C.paper;
+      ctx.lineWidth = Math.max(1, s * 0.2);
       ctx.beginPath();
       ctx.moveTo(x, y);
-      ctx.lineTo(x + len, y);
+      ctx.quadraticCurveTo(x + s * 0.6, y - s * 0.4, x + s * 1.2, y);
+      ctx.quadraticCurveTo(x + s * 1.8, y + s * 0.35, x + s * 2.4, y - s * 0.05);
       ctx.stroke();
     }
   }
-  ctx.globalAlpha = 1;
-  // Ripple strokes, longer and lighter near the top, getting sparse and dark deeper.
-  for (let i = 0; i < 520; i++) {
-    const y = 6 + r() ** 1.4 * (lay.h - 10);
-    const x = r() * WATER_W;
-    const len = r.range(10, 40) * (1.2 - y / lay.h);
-    const light = r() < 0.55 - y / (lay.h * 2);
-    const pts = [[x, y], [x + len * 0.5, y - r.range(1, 3)], [x + len, y]];
-    // Keep strokes inside the tile so it repeats cleanly.
-    if (x + len > WATER_W - 2) continue;
-    brush(ctx, pts, r, { w: light ? 2.4 : 2, color: light ? C.ash : C.charcoal, amp: 0.4 });
+  paperTexture(ctx, bw, h, r, { strength: 1 });
+  return { ...lay, top, parallax };
+}
+
+// ---------------------------------------------------------------- distant boats
+
+function paintBoat(res) {
+  // A little sidewheeler crossing the river far away.
+  const lay = makeLayer(200, 120, res);
+  const { ctx } = lay;
+  const r = rng(808);
+  const ink = C.charcoal;
+  ctx.translate(10, 10);
+  const hull = new Path2D();
+  hull.moveTo(0, 82);
+  hull.lineTo(176, 82);
+  hull.quadraticCurveTo(172, 100, 150, 104);
+  hull.lineTo(16, 104);
+  hull.quadraticCurveTo(4, 98, 0, 82);
+  hull.closePath();
+  wash(ctx, hull, C.slate, C.ink, { dir: "down", strength: 0.5, x: 0, y: 82, w: 176, h: 22 });
+  line(ctx, ink, 2);
+  ctx.stroke(hull);
+  ctx.fillStyle = C.paper;
+  ctx.fillRect(4, 84, 168, 4);
+  const cabin = rectPath(28, 58, 110, 24);
+  wash(ctx, cabin, C.paper, C.ash, { dir: "right", strength: 0.5, x: 28, y: 58, w: 110, h: 24 });
+  ctx.stroke(cabin);
+  for (let k = 0; k < 7; k++) {
+    ctx.fillStyle = C.slate;
+    ctx.fillRect(34 + k * 15, 64, 7, 9);
   }
-  // Sparkle glints.
-  for (let i = 0; i < 60; i++) {
-    const x = r.range(10, WATER_W - 30);
-    const y = r.range(6, 40);
-    brush(ctx, [[x, y], [x + r.range(8, 20), y]], r, { w: 2.2, color: C.paper, amp: 0.2 });
+  const house = rectPath(92, 40, 36, 18);
+  wash(ctx, house, C.paper, C.ash, { dir: "right", strength: 0.5, x: 92, y: 40, w: 36, h: 18 });
+  ctx.stroke(house);
+  windowPane(ctx, 98, 44, 9, 8, ink, 1);
+  windowPane(ctx, 112, 44, 9, 8, ink, 1);
+  const stack = rectPath(54, 16, 12, 42);
+  wash(ctx, stack, C.ink, null);
+  ctx.stroke(stack);
+  ctx.fillStyle = C.paper;
+  ctx.fillRect(54, 26, 12, 3);
+  // Paddlewheel.
+  ctx.beginPath();
+  ctx.arc(88, 86, 20, 0, TAU);
+  ctx.fillStyle = C.silver;
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  for (let k = 0; k < 8; k++) {
+    const a = (k * TAU) / 8;
+    ctx.moveTo(88, 86);
+    ctx.lineTo(88 + Math.cos(a) * 20, 86 + Math.sin(a) * 20);
   }
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(88, 86, 5, 0, TAU);
+  ctx.fillStyle = C.paper;
+  ctx.fill();
+  ctx.stroke();
+  // Flag.
+  line(ctx, ink, 1.5);
+  ctx.beginPath();
+  ctx.moveTo(150, 82);
+  ctx.lineTo(150, 30);
+  ctx.stroke();
+  ctx.fillStyle = C.charcoal;
+  ctx.fillRect(150, 30, 16, 11);
+  paperTexture(ctx, 200, 120, r, { strength: 0.8 });
+  return lay;
+}
+
+function paintSail(res) {
+  const lay = makeLayer(90, 110, res);
+  const { ctx } = lay;
+  const r = rng(909);
+  line(ctx, C.slate, 1.5);
+  const sail = new Path2D();
+  sail.moveTo(44, 6);
+  sail.quadraticCurveTo(70, 50, 76, 82);
+  sail.lineTo(44, 82);
+  sail.closePath();
+  wash(ctx, sail, C.paper, C.ash, { dir: "right", strength: 0.6, x: 44, y: 6, w: 34, h: 76 });
+  ctx.stroke(sail);
+  const jib = new Path2D();
+  jib.moveTo(40, 14);
+  jib.lineTo(40, 82);
+  jib.lineTo(14, 82);
+  jib.closePath();
+  wash(ctx, jib, C.paper, C.ash, { dir: "left", strength: 0.4, x: 14, y: 14, w: 26, h: 68 });
+  ctx.stroke(jib);
+  const hull = new Path2D();
+  hull.moveTo(6, 84);
+  hull.lineTo(84, 84);
+  hull.quadraticCurveTo(76, 98, 64, 98);
+  hull.lineTo(18, 98);
+  hull.closePath();
+  wash(ctx, hull, C.slate, null);
+  ctx.stroke(hull);
+  paperTexture(ctx, 90, 110, r, { strength: 0.8 });
   return lay;
 }
 
 // ---------------------------------------------------------------- foreground
 
 function paintFront(res) {
+  // Big mooring posts in the very front, wrapped in rope, framing the view.
   const lay = makeLayer(FRONT_W, H - FRONT_TOP, res);
   const { ctx } = lay;
   const r = rng(91);
-  const base = lay.h;
-  let x = 60;
-  let k = 0;
-  while (x < FRONT_W - 160) {
-    if (k++ % 2 === 0) {
-      // Lily pads with a flower.
-      for (let i = 0; i < 3; i++) {
-        const lx = x + i * r.range(22, 34);
-        const ly = r.range(84, 106);
-        const rad = r.range(18, 28);
-        ctx.fillStyle = C.ash;
-        ctx.beginPath();
-        ctx.ellipse(lx, ly, rad, rad * 0.35, 0, 0.35, TAU - 0.05);
-        ctx.lineTo(lx, ly);
-        ctx.closePath();
-        ctx.fill();
-        ctx.strokeStyle = C.ink;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.strokeStyle = C.slate;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(lx, ly);
-        ctx.lineTo(lx - rad * 0.6, ly - rad * 0.12);
-        ctx.moveTo(lx, ly);
-        ctx.lineTo(lx + rad * 0.5, ly + rad * 0.15);
-        ctx.stroke();
-        if (i === 1) {
-          for (let k = 0; k < 5; k++) {
-            const a = Math.PI + (k / 4) * Math.PI;
-            ctx.fillStyle = C.paper;
-            ctx.beginPath();
-            ctx.ellipse(lx + Math.cos(a) * 6, ly - 6 + Math.sin(a) * 5, 3, 7, a + Math.PI / 2, 0, TAU);
-            ctx.fill();
-            ctx.strokeStyle = C.ink;
-            ctx.lineWidth = 1.2;
-            ctx.stroke();
-          }
-        }
-      }
-      x += r.range(260, 420);
-    } else {
-      // Tall reeds and cattails in the near water.
-      reedClump(ctx, x, base + 4, r, 1.8, C.ink);
-      reedClump(ctx, x + 20, base + 4, r, 1.4, C.charcoal);
-      reedClump(ctx, x - 16, base + 4, r, 1.1, C.charcoal);
-      x += r.range(220, 380);
+  const h = lay.h;
+  for (let x = 300; x < FRONT_W - 200; x += r.range(900, 1400)) {
+    const pw = 54;
+    const top = r.range(64, 86);
+    const post = new Path2D();
+    post.moveTo(x, h + 4);
+    post.lineTo(x, top + 10);
+    post.quadraticCurveTo(x, top, x + 10, top - 2);
+    post.lineTo(x + pw - 10, top - 2);
+    post.quadraticCurveTo(x + pw, top, x + pw, top + 10);
+    post.lineTo(x + pw, h + 4);
+    post.closePath();
+    wash(ctx, post, C.ash, C.ink, { dir: "right", strength: 0.75, x, y: top, w: pw, h: h - top });
+    // Wood grain.
+    line(ctx, C.charcoal, 1.2);
+    ctx.beginPath();
+    for (let k = 0; k < 5; k++) {
+      const gx = x + 8 + k * 9 + r.range(-2, 2);
+      ctx.moveTo(gx, top + 14);
+      ctx.bezierCurveTo(gx + 3, top + 50, gx - 3, top + 90, gx + 1, h);
     }
+    ctx.stroke();
+    line(ctx, C.ink, 4);
+    ctx.stroke(post);
+    // Top end grain.
+    ctx.beginPath();
+    ctx.ellipse(x + pw / 2, top + 2, pw / 2 - 2, 6, 0, 0, TAU);
+    ctx.fillStyle = C.silver;
+    ctx.fill();
+    line(ctx, C.ink, 3);
+    ctx.stroke();
+    line(ctx, C.ash, 1);
+    ctx.beginPath();
+    ctx.ellipse(x + pw / 2, top + 2, pw / 4, 3, 0, 0, TAU);
+    ctx.stroke();
+    // Rope wraps and a hanging loop.
+    for (let k = 0; k < 4; k++) {
+      const ry = top + 34 + k * 9;
+      const rope = new Path2D();
+      rope.moveTo(x - 3, ry);
+      rope.quadraticCurveTo(x + pw / 2, ry + 7, x + pw + 3, ry);
+      rope.lineTo(x + pw + 3, ry + 7);
+      rope.quadraticCurveTo(x + pw / 2, ry + 14, x - 3, ry + 7);
+      rope.closePath();
+      wash(ctx, rope, C.silver, C.slate, { dir: "down", strength: 0.5, x, y: ry, w: pw, h: 14 });
+      line(ctx, C.ink, 2);
+      ctx.stroke(rope);
+      line(ctx, C.ash, 1);
+      ctx.beginPath();
+      for (let t = 0; t < pw; t += 7) {
+        ctx.moveTo(x + t, ry + 1);
+        ctx.lineTo(x + t + 5, ry + 9);
+      }
+      ctx.stroke();
+    }
+    line(ctx, C.ink, 5);
+    ctx.beginPath();
+    ctx.moveTo(x + pw, top + 52);
+    ctx.bezierCurveTo(x + pw + 40, top + 70, x + pw + 50, h - 10, x + pw + 10, h + 4);
+    ctx.stroke();
+    line(ctx, C.silver, 2.5);
+    ctx.stroke();
   }
+  paperTexture(ctx, FRONT_W, h, r, { strength: 1 });
   return lay;
 }
 
 // ---------------------------------------------------------------- per-frame drawing
 
-function tile(ctx, lay, offset, y, scaleY = 1) {
+function tile(ctx, lay, offset, y) {
   const w = lay.w;
   let x = -(((offset % w) + w) % w);
-  ctx.save();
-  if (scaleY !== 1) {
-    ctx.translate(0, y + lay.h);
-    ctx.scale(1, scaleY);
-    ctx.translate(0, -(y + lay.h));
-  }
   for (; x < W; x += w) ctx.drawImage(lay.canvas, x, y, w, lay.h);
-  ctx.restore();
 }
 
 export function drawBackground(ctx, camX, g) {
   if (!L) paintAll();
-  ctx.drawImage(L.sky.canvas, 0, 0, W, WATER);
-
-  // Sun, slowly turning, pulsing on the beat.
-  const s = 1 + g.beat * 0.04;
-  ctx.save();
-  ctx.translate(1050, 118);
-  ctx.rotate(g.time * 0.08);
-  ctx.scale(s, s);
-  ctx.drawImage(L.sun.canvas, -140, -140, 280, 280);
-  ctx.restore();
-
-  drawBirds(ctx, g);
+  ctx.drawImage(L.sky.canvas, 0, 0, W, L.sky.h);
 
   // Clouds drift and squash on the beat.
-  const span = 1500;
-  const off = camX * 0.06 + g.time * 8;
+  const span = 1300;
+  const off = camX * 0.05 + g.time * 7;
   for (let i = -1; i < 3; i++) {
     const cell = Math.floor(off / span) + i;
     const hsh = Math.abs(Math.sin(cell * 91.7)) % 1;
     const cx = cell * span - off + hsh * 600;
-    const cy = 30 + ((hsh * 7.3) % 1) * 110;
-    const sc = 0.75 + ((hsh * 3.1) % 1) * 0.4;
+    const cy = 10 + ((hsh * 7.3) % 1) * 120;
+    const sc = 0.7 + ((hsh * 3.1) % 1) * 0.45;
     const k = 1 + g.beat * 0.05;
     const cl = L.clouds[((cell % 3) + 3) % 3];
     ctx.save();
-    ctx.translate(cx + 210 * sc, cy + 190 * sc);
+    ctx.translate(cx + 220 * sc, cy + 160 * sc);
     ctx.scale(sc * k, sc / k);
-    ctx.drawImage(cl.canvas, -210, -190, cl.w, cl.h);
+    ctx.drawImage(cl.canvas, -220, -160, cl.w, cl.h);
     ctx.restore();
   }
 
-  tile(ctx, L.far, camX * 0.12, FAR_TOP);
-  tile(ctx, L.mid, camX * 0.35, MID_TOP, 1 + g.beat * 0.012);
-  tile(ctx, L.water, camX, WATER);
+  tile(ctx, L.hills, camX * 0.05, HILLS_TOP);
+  tile(ctx, L.town, camX * 0.12, TOWN_TOP);
+  for (const b of L.bands) tile(ctx, b, camX * b.parallax, b.top);
+
+  // Distant boats on the far water.
+  const bx = ((900 - camX * 0.16 + g.time * 14) % 2600 + 2600) % 2600 - 400;
+  ctx.drawImage(L.boat.canvas, bx, HORIZON - 84 + 26 + Math.sin(g.time * 1.4) * 1.5, 150, 90);
+  const sx = ((2100 - camX * 0.2 - g.time * 9) % 3000 + 3000) % 3000 - 300;
+  ctx.drawImage(L.sail.canvas, sx, HORIZON - 40 + Math.sin(g.time * 1.1) * 1.5, 54, 66);
+
+  drawGulls(ctx, camX, g);
 }
 
-function drawBirds(ctx, g) {
-  ctx.strokeStyle = C.slate;
-  ctx.lineWidth = 2;
-  for (let i = 0; i < 4; i++) {
-    const x = ((g.time * (18 + i * 3) + i * 330) % (W + 200)) - 100;
-    const y = 150 + i * 22 + Math.sin(g.time * 0.8 + i) * 10;
-    const f = Math.sin(g.time * 9 + i * 2) * 4;
-    ctx.beginPath();
-    ctx.moveTo(x - 9, y - f);
-    ctx.quadraticCurveTo(x - 4, y - 5, x, y);
-    ctx.quadraticCurveTo(x + 4, y - 5, x + 9, y - f);
-    ctx.stroke();
+function drawGulls(ctx, camX, g) {
+  for (let i = 0; i < 3; i++) {
+    const x = ((i * 520 + 200 - camX * 0.3 + g.time * (26 + i * 6)) % (W + 300) + W + 300) % (W + 300) - 150;
+    const y = 120 + i * 46 + Math.sin(g.time * 0.7 + i * 2) * 14;
+    gull(ctx, x, y, 0.8 + i * 0.12, Math.sin(g.time * 7 + i * 1.7));
   }
+}
+
+// A seagull in flight: white body, inked wings. flap is -1..1.
+export function gull(ctx, x, y, s, flap) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(s, s);
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  const wy = -8 * flap;
+  ctx.beginPath();
+  ctx.moveTo(-2, 0);
+  ctx.quadraticCurveTo(-10, wy - 6, -22, wy);
+  ctx.quadraticCurveTo(-12, wy + 2, -2, 4);
+  ctx.moveTo(2, 0);
+  ctx.quadraticCurveTo(10, wy - 6, 22, wy);
+  ctx.quadraticCurveTo(12, wy + 2, 2, 4);
+  ctx.fillStyle = C.paper;
+  ctx.fill();
+  ctx.strokeStyle = C.ink;
+  ctx.lineWidth = 1.6;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(0, 2, 6, 3.5, 0, 0, TAU);
+  ctx.fillStyle = C.paper;
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = C.ink;
+  ctx.beginPath();
+  ctx.moveTo(-22, wy);
+  ctx.lineTo(-17, wy - 1);
+  ctx.lineTo(-18, wy + 2);
+  ctx.closePath();
+  ctx.moveTo(22, wy);
+  ctx.lineTo(17, wy - 1);
+  ctx.lineTo(18, wy + 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
 }
 
 export function drawForeground(ctx, camX, g) {
   if (!L) paintAll();
-  // Front water: hides the submerged parts of barrels, pilings and the hull.
-  ctx.globalAlpha = 0.82;
+  // Near water over the submerged parts of barrels, pilings and the hull.
+  ctx.globalAlpha = 0.8;
   ctx.fillStyle = C.slate;
   ctx.fillRect(0, WATER + 8, W, H - WATER - 8);
-  ctx.globalAlpha = 0.7;
+  ctx.globalAlpha = 0.55;
   ctx.fillStyle = C.charcoal;
   ctx.fillRect(0, WATER + 70, W, H - WATER - 70);
   ctx.globalAlpha = 1;
-  // Wavy, inked surface line with little crests.
+  // Wave marks on the near water, scattered irregularly, moving with the camera.
   const t = g.time;
+  ctx.lineCap = "round";
+  for (let row = 0; row < 4; row++) {
+    const y0 = WATER + 26 + row * 26;
+    const sp = 90 + row * 14;
+    const off = camX * (1 + row * 0.08) + t * 16 * (row + 1);
+    const first = Math.floor(off / sp) - 1;
+    for (let cell = first; cell < first + W / sp + 3; cell++) {
+      const hsh = Math.abs(Math.sin(cell * 12.9898 + row * 78.233) * 43758.5453) % 1;
+      if (hsh < 0.3) continue;
+      const x = cell * sp - off + hsh * sp * 0.7;
+      const y = y0 + (hsh - 0.5) * 12;
+      const s = (11 + row * 3) * (0.7 + hsh * 0.6);
+      ctx.strokeStyle = C.ink;
+      ctx.globalAlpha = 0.35;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x, y + 3);
+      ctx.quadraticCurveTo(x + s * 0.6, y - s * 0.2 + 3, x + s * 1.2, y + 3);
+      ctx.quadraticCurveTo(x + s * 1.8, y + s * 0.35 + 3, x + s * 2.4, y + 3);
+      ctx.stroke();
+      ctx.strokeStyle = C.paper;
+      ctx.globalAlpha = 0.85;
+      ctx.lineWidth = 2.6;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.quadraticCurveTo(x + s * 0.6, y - s * 0.4, x + s * 1.2, y);
+      ctx.quadraticCurveTo(x + s * 1.8, y + s * 0.35, x + s * 2.4, y);
+      ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
+  // Wavy surface line.
   const pts = [];
   for (let sx = -12; sx <= W + 12; sx += 12) {
     const wx = sx + camX;
@@ -843,14 +1045,50 @@ export function drawForeground(ctx, camX, g) {
   ctx.lineWidth = 3;
   smoothPath(ctx, pts);
   ctx.stroke();
-  ctx.strokeStyle = C.ink;
-  ctx.lineWidth = 1.2;
-  ctx.beginPath();
-  for (let sx = -((camX * 1.0) % 90); sx < W; sx += 90) {
-    const y = WATER + 13 + Math.sin((sx + camX) * 0.03 + t * 3) * 2.5;
-    ctx.moveTo(sx, y);
-    ctx.quadraticCurveTo(sx + 8, y - 4, sx + 16, y);
+  tile(ctx, L.front, camX * 1.35, FRONT_TOP);
+}
+
+// A unified paper-and-watercolor finish over the whole illustrated frame:
+// broad soft blooms, darker pooled edges and fine fibres. Painted once.
+let finish = null;
+export function drawPaperFinish(ctx) {
+  if (!finish) {
+    const lay = makeLayer(W, H, 1);
+    const c = lay.ctx;
+    const r = rng(2024);
+    for (let i = 0; i < 70; i++) {
+      const x = r() * W;
+      const y = r() * H;
+      const rad = 60 + r() * 220;
+      const g = c.createRadialGradient(x, y, rad * 0.2, x, y, rad);
+      const dark = r() < 0.6;
+      g.addColorStop(0, dark ? "rgba(23,22,20,0.05)" : "rgba(248,246,240,0.06)");
+      g.addColorStop(0.85, dark ? "rgba(23,22,20,0.035)" : "rgba(248,246,240,0.02)");
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      c.fillStyle = g;
+      c.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+    }
+    // Pooled pigment toward the frame edges.
+    const e = c.createRadialGradient(W / 2, H / 2, H * 0.45, W / 2, H / 2, W * 0.62);
+    e.addColorStop(0, "rgba(23,22,20,0)");
+    e.addColorStop(1, "rgba(23,22,20,0.18)");
+    c.fillStyle = e;
+    c.fillRect(0, 0, W, H);
+    // Paper fibres.
+    c.strokeStyle = C.ink;
+    c.lineWidth = 0.6;
+    c.globalAlpha = 0.08;
+    c.beginPath();
+    for (let i = 0; i < 1400; i++) {
+      const x = r() * W;
+      const y = r() * H;
+      const a = r() * TAU;
+      const l = 2 + r() * 6;
+      c.moveTo(x, y);
+      c.quadraticCurveTo(x + Math.cos(a) * l * 0.5 + 1, y + Math.sin(a) * l * 0.5 + 1, x + Math.cos(a) * l, y + Math.sin(a) * l);
+    }
+    c.stroke();
+    finish = lay;
   }
-  ctx.stroke();
-  tile(ctx, L.front, camX * 1.3, FRONT_TOP);
+  ctx.drawImage(finish.canvas, 0, 0, W, H);
 }

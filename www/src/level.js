@@ -5,6 +5,7 @@ import { Barrel } from "./entities/barrel.js";
 import { Raft } from "./entities/raft.js";
 import { Critter } from "./entities/critter.js";
 import { Note } from "./entities/note.js";
+import { Deco } from "./entities/deco.js";
 
 const PLATFORMS = { dock: Dock, crate: Crate, barrel: Barrel, raft: Raft };
 
@@ -16,6 +17,7 @@ export function loadLevel(data) {
     pxPerFt: data.landing.x / data.lengthFt,
     platforms: [],
     critters: [],
+    decos: [],
     notes: [],
     hints: [],
   };
@@ -24,6 +26,8 @@ export function loadLevel(data) {
       level.platforms.push(new PLATFORMS[o.type](o));
     } else if (o.type === "critter") {
       level.critters.push(new Critter(o));
+    } else if (o.type === "deco") {
+      level.decos.push(new Deco(o));
     } else if (o.type === "note") {
       level.notes.push(new Note(o));
     } else if (o.type === "notes") {

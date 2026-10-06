@@ -2,7 +2,7 @@
 import { PALETTE as C, SERIF } from "../art/palette.js";
 import { roundRect, fillStroke } from "../art/draw.js";
 import { CONFIG } from "../config.js";
-import { rng, cached, pen, brush, hatch, woodGrain } from "../art/ink.js";
+import { rng, cached, plank, piling, rope, roughStroke } from "../art/ink.js";
 
 
 export class Dock {
@@ -27,25 +27,14 @@ export class Dock {
     const sh = water + 60 - y + 6;
     const spr = cached(`dock:${x}:${w}`, w + 12, sh, (c) => paintDock(c, w, water - y, x));
     ctx.drawImage(spr.canvas, x - 6, y - 6, spr.w, spr.h);
-    // Mooring posts at each end bounce on the beat.
+    // Mooring bollards at each end bounce on the beat.
+    const bol = cached("dock:bollard", 40, 48, paintBollard);
     for (const px of [x + 16, x + w - 16]) {
-      const s = 1 + g.beat * 0.12;
+      const s = 1 + g.beat * 0.1;
       ctx.save();
-      ctx.translate(px, y);
+      ctx.translate(px, y + 4);
       ctx.scale(1 / Math.sqrt(s), s);
-      roundRect(ctx, -8, -26, 16, 28, 6);
-      fillStroke(ctx, C.charcoal, 3.5);
-      ctx.strokeStyle = C.ash;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(-8, -12);
-      ctx.lineTo(8, -16);
-      ctx.moveTo(-8, -7);
-      ctx.lineTo(8, -11);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.ellipse(0, -26, 10, 4, 0, 0, Math.PI * 2);
-      fillStroke(ctx, C.ash, 3);
+      ctx.drawImage(bol.canvas, -20, -44, 40, 48);
       ctx.restore();
     }
     if (this.landing) this.drawFlag(ctx, g);
@@ -99,96 +88,105 @@ export class Dock {
   }
 }
 
-// Paint a dock once: pilings, cross-bracing, and a weathered plank deck.
-// Local coordinates: deck top at y = 6, x offset 6.
+// Paint a dock once: pilings, bracing, a shadowed underside, and a deck of
+// weathered boards. Local coordinates: deck top at y = 6, x offset 6.
 function paintDock(ctx, w, waterDepth, seed) {
   const r = rng(seed + 17);
   const ox = 6;
   const top = 6;
-  const bottom = top + waterDepth + 54;
-  const n = Math.max(2, Math.round(w / 120) + 1);
+  const water = top + waterDepth;
+  const bottom = water + 54;
+  const n = Math.max(2, Math.round(w / 110) + 1);
   const posts = [];
   for (let i = 0; i < n; i++) posts.push(ox + 14 + ((w - 28) * i) / (n - 1));
 
-  // Cross-bracing between pilings.
+  // Deep shadow under the deck.
+  const sh = ctx.createLinearGradient(0, top + 20, 0, water + 10);
+  sh.addColorStop(0, "rgba(23,22,20,0.75)");
+  sh.addColorStop(0.5, "rgba(23,22,20,0.35)");
+  sh.addColorStop(1, "rgba(23,22,20,0.1)");
+  ctx.fillStyle = sh;
+  ctx.fillRect(ox + 2, top + 20, w - 4, water - top - 10);
+
+  // Back row of pilings, smaller and darker for depth.
+  for (let i = 0; i < posts.length - 1; i++) {
+    const cx = (posts[i] + posts[i + 1]) / 2;
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = C.charcoal;
+    ctx.fillRect(cx - 7, top + 22, 14, water - top - 18);
+    ctx.globalAlpha = 1;
+  }
+  // Cross-bracing boards between the front pilings.
   for (let i = 0; i < posts.length - 1; i++) {
     const a = posts[i];
     const b = posts[i + 1];
-    for (const [x0, y0, x1, y1] of [[a, top + 26, b, top + 70], [a, top + 70, b, top + 26]]) {
-      brush(ctx, [[x0, y0], [x1, y1]], r, { w: 7, color: C.ink, taper: 0.1 });
-      brush(ctx, [[x0, y0], [x1, y1]], r, { w: 4, color: C.ash, taper: 0.1 });
+    for (const [x0, y0, x1, y1] of [[a, top + 28, b, top + 66], [a, top + 66, b, top + 28]]) {
+      const len = Math.hypot(x1 - x0, y1 - y0);
+      ctx.save();
+      ctx.translate(x0, y0);
+      ctx.rotate(Math.atan2(y1 - y0, x1 - x0));
+      plank(ctx, 0, -4, len, 8, r, { fill: C.ash, nails: false, line: 1.6 });
+      ctx.restore();
     }
   }
-  // Pilings: round logs with bark hatching, rope wraps and a waterline stain.
+  // Front pilings: round logs with rope, barnacles and a foam ring.
   for (const px of posts) {
-    const pw = 18;
-    ctx.fillStyle = C.charcoal;
-    ctx.fillRect(px - pw / 2, top + 18, pw, bottom - top - 18);
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(px - pw / 2, top + 18, pw, bottom - top - 18);
-    ctx.clip();
-    ctx.strokeStyle = C.slate;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let k = 0; k < 4; k++) {
-      const lx = px - 6 + k * 4 + r.range(-1, 1);
-      ctx.moveTo(lx, top + 20);
-      ctx.lineTo(lx + r.range(-1, 1), bottom);
+    piling(ctx, px, top + 18, bottom, 22, r, { cap: false });
+    if (r() < 0.55) {
+      for (let k = 0; k < 3; k++) {
+        const ry = top + 36 + k * 6;
+        rope(ctx, [[px - 12, ry], [px, ry + 3], [px + 12, ry]], 4);
+      }
     }
-    ctx.stroke();
-    ctx.fillStyle = C.ink;
-    ctx.fillRect(px + 2, top + 18, pw / 2 - 2, bottom - top - 18);
-    ctx.restore();
-    pen(ctx, [[px - pw / 2, top + 18], [px - pw / 2, bottom]], r, { w: 2.5, color: C.ink, amp: 0.6 });
-    pen(ctx, [[px + pw / 2, top + 18], [px + pw / 2, bottom]], r, { w: 2.5, color: C.ink, amp: 0.6 });
-    // Rope wrap.
-    ctx.strokeStyle = C.silver;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    for (let k = 0; k < 4; k++) {
-      ctx.moveTo(px - pw / 2, top + 40 + k * 4);
-      ctx.lineTo(px + pw / 2, top + 36 + k * 4);
-    }
-    ctx.stroke();
-    // Barnacles near the waterline.
     ctx.fillStyle = C.ash;
-    for (let k = 0; k < 6; k++) {
+    for (let k = 0; k < 9; k++) {
       ctx.beginPath();
-      ctx.arc(px + r.range(-7, 7), top + waterDepth - r.range(0, 12), r.range(1, 2.4), 0, Math.PI * 2);
+      ctx.arc(px + r.range(-9, 9), water - r.range(-2, 14), r.range(1, 2.6), 0, Math.PI * 2);
       ctx.fill();
+      ctx.strokeStyle = C.charcoal;
+      ctx.lineWidth = 0.7;
+      ctx.stroke();
     }
+    // Dark waterline stain.
+    ctx.fillStyle = "rgba(23,22,20,0.45)";
+    ctx.fillRect(px - 11, water - 18, 22, 18);
+    ctx.strokeStyle = C.paper;
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.ellipse(px, water + 4, 18, 4, 0, 0.15, Math.PI - 0.15);
+    ctx.stroke();
   }
-  // Under-deck shadow beam.
-  ctx.fillStyle = C.charcoal;
-  ctx.fillRect(ox + 4, top + 20, w - 8, 9);
 
-  // Deck fascia: a long weathered board with grain, plank seams and nails.
-  const deck = new Path2D();
-  deck.rect(ox, top, w, 22);
+  // Stringer beam under the deck.
+  plank(ctx, ox + 2, top + 22, w - 4, 8, r, { fill: C.slate, nails: false, line: 1.8 });
+
+  // Deck top: board ends seen in slight perspective.
   ctx.fillStyle = C.silver;
-  ctx.fill(deck);
-  ctx.save();
-  ctx.clip(deck);
-  woodGrain(ctx, ox, top + 4, w, 16, r, C.ash);
-  ctx.fillStyle = C.paper;
-  ctx.fillRect(ox, top, w, 4);
-  hatch(ctx, ox, top + 14, w, 8, r, { gap: 3, lw: 0.9, color: C.ash, angle: 0.25, density: 0.8 });
-  ctx.restore();
-  ctx.strokeStyle = C.ink;
-  ctx.lineWidth = 1.6;
+  ctx.fillRect(ox, top, w, 6);
+  ctx.strokeStyle = C.ash;
+  ctx.lineWidth = 1;
   ctx.beginPath();
-  for (let bx = ox + r.range(30, 60); bx < ox + w - 20; bx += r.range(46, 90)) {
-    ctx.moveTo(bx, top + 3);
-    ctx.lineTo(bx + r.range(-1, 1), top + 21);
+  for (let bx = ox + r.range(8, 16); bx < ox + w - 4; bx += r.range(14, 22)) {
+    ctx.moveTo(bx, top + 0.5);
+    ctx.lineTo(bx - 1.5, top + 5.5);
   }
   ctx.stroke();
-  ctx.fillStyle = C.ink;
-  for (let bx = ox + 10; bx < ox + w - 6; bx += 23) {
-    ctx.beginPath();
-    ctx.arc(bx + r.range(-2, 2), top + 8, 1.4, 0, Math.PI * 2);
-    ctx.arc(bx + r.range(-2, 2), top + 16, 1.4, 0, Math.PI * 2);
-    ctx.fill();
+  // Front fascia: two rows of boards with staggered joints.
+  for (const [y, hgt, fill] of [[top + 5, 9, C.ash], [top + 13, 10, C.slate]]) {
+    let x = ox;
+    while (x < ox + w - 1) {
+      const bw = Math.min(ox + w - x, r.range(70, 190));
+      plank(ctx, x, y, bw, hgt, r, { fill, line: 1.6 });
+      x += bw;
+    }
   }
-  pen(ctx, [[ox, top], [ox + w, top], [ox + w, top + 22], [ox, top + 22], [ox, top]], r, { w: 3.5, color: C.ink, amp: 0.7 });
+  const outline = new Path2D();
+  outline.rect(ox, top, w, 23);
+  roughStroke(ctx, outline, 3.2);
+}
+
+function paintBollard(ctx) {
+  const r = rng(5);
+  piling(ctx, 20, 8, 44, 20, r);
+  for (let k = 0; k < 3; k++) rope(ctx, [[9, 20 + k * 5], [20, 23 + k * 5], [31, 20 + k * 5]], 3.5);
 }

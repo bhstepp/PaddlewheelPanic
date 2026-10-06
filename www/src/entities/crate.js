@@ -73,19 +73,26 @@ function paintCrate(ctx, w, h, seed) {
   ctx.strokeStyle = C.ink;
   ctx.lineWidth = 1.4;
   ctx.strokeRect(f, f, w - 2 * f, h - 2 * f);
-  ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(f, h - f - 9);
-  ctx.lineTo(w - f - 9, f);
-  ctx.lineTo(w - f, f);
-  ctx.lineTo(w - f, f + 9);
-  ctx.lineTo(f + 9, h - f);
-  ctx.lineTo(f, h - f);
-  ctx.closePath();
-  ctx.fillStyle = C.ash;
-  ctx.fill();
-  ctx.stroke();
-  ctx.restore();
+  // Big X brace across the face.
+  for (const mirror of [false, true]) {
+    ctx.save();
+    if (mirror) {
+      ctx.translate(w, 0);
+      ctx.scale(-1, 1);
+    }
+    ctx.beginPath();
+    ctx.moveTo(f, h - f - 8);
+    ctx.lineTo(w - f - 8, f);
+    ctx.lineTo(w - f, f);
+    ctx.lineTo(w - f, f + 8);
+    ctx.lineTo(f + 8, h - f);
+    ctx.lineTo(f, h - f);
+    ctx.closePath();
+    ctx.fillStyle = C.ash;
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
   // Nails.
   ctx.fillStyle = C.ink;
   for (const [nx, ny] of [[4.5, 4.5], [w - 4.5, 4.5], [4.5, h - 4.5], [w - 4.5, h - 4.5], [w / 2, 4.5], [w / 2, h - 4.5]]) {

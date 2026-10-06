@@ -44,6 +44,7 @@ export function drawIntro(ctx, def, zone, rec, t, opts = {}) {
   } else {
     spacedText(ctx, "A FILM REEL IS HIDDEN HERE", W / 2, 470, 18, 3, { color: C.ash, weight: "normal" });
   }
+  if (opts.ghost && !opts.mode) spacedText(ctx, "YOUR BEST RUN RACES ALONG AS A GHOST", W / 2, 528, 15, 3, { color: C.ash, weight: "normal" });
   for (const b of introButtons()) button(ctx, b, b.label, { primary: b.primary });
 }
 

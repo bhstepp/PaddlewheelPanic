@@ -6,7 +6,7 @@ import { audio } from "./audio.js";
 import { platform } from "./platform.js";
 import * as store from "./storage.js";
 import { Game } from "./game.js";
-import { drawFilm } from "./art/film.js";
+import { drawFilm, drawIris } from "./art/film.js";
 import { drawTitle, drawHUD, drawHint, drawPause, pauseButtonRect, pauseButtons } from "./ui.js";
 import { levelDef } from "./levels/index.js";
 import { zoneOf, nextLevel } from "./zones/index.js";
@@ -14,6 +14,8 @@ import { drawMap, mapTap, isUnlocked } from "./screens/map.js";
 import { drawIntro, introButtons, drawResultCard, resultButtons } from "./screens/cards.js";
 import { inside } from "./screens/common.js";
 import { extraScreens } from "./screens/extras.js";
+import { registerBooth } from "./screens/booth.js";
+import { registerDaily } from "./screens/daily.js";
 
 const W = CONFIG.width;
 const H = CONFIG.height;
@@ -119,6 +121,12 @@ export function openLevel(id, opts = {}) {
   current = { id, def, zone: opts.zone ?? zoneOf(id), opts };
   mapFocus = opts.mode === "daily" ? mapFocus : id;
   go("intro");
+  // Race your best run of this level as a film ghost.
+  if (!opts.mode) {
+    store.loadGhost(id).then((g) => {
+      if (g && current.opts === opts) opts.ghost = g;
+    });
+  }
 }
 
 function startRun() {
@@ -142,6 +150,10 @@ function finish(r) {
     const hadReel = store.hasReel(current.id);
     newBest = store.recordLevel(current.id, { won: r.won, stars: r.stars, notes: r.notes, timeSec: r.timeSec, reel: r.reel });
     r.reelNew = r.reel && !hadReel;
+    if (newBest && r.ghost) {
+      store.saveGhost(current.id, r.ghost);
+      current.opts.ghost = r.ghost;
+    }
     if (r.won) platform.submitScore({ board: `level.${current.id}`, value: r.notes, timeSec: r.timeSec, stars: r.stars });
   }
   go("result");
@@ -172,7 +184,9 @@ function toggleSound() {
 const hasNext = () => !current.opts.mode && !!nextLevel(current.id) && isUnlocked(nextLevel(current.id));
 
 // Screens added by other modules (booth, daily matinee...).
-const extras = extraScreens({ go, openLevel, openMap, toggleSound, audio, store, getScreenT: () => screenT });
+const extras = extraScreens({ go, openLevel, openMap, toggleSound, audio, store, platform, getScreenT: () => screenT });
+registerBooth(extras);
+registerDaily(extras);
 
 // Taps the UI handles before they can become jumps. Keyboard taps arrive as
 // (-1, -1) for Enter/Space and (-2, -2) for Escape.
@@ -316,6 +330,7 @@ function render(dt) {
     case "play":
     case "paused":
       game.draw(ctx);
+      drawIris(ctx, store.getSettings().filter);
       drawHint(ctx, game.hint, input.coarse);
       drawHUD(ctx, game, safe);
       if (screen === "paused") drawPause(ctx, store.getSettings().muted);

@@ -7,7 +7,7 @@ export function inside(x, y, r) {
 }
 
 // A pill button. style: "dark" (on paper) or "light" (on black cards).
-export function button(ctx, r, label, { style = "light", primary = false, disabled = false, size = 24 } = {}) {
+export function button(ctx, r, label, { style = "light", primary = false, disabled = false, size = 24, spacing = 4 } = {}) {
   ctx.save();
   roundRect(ctx, r.x, r.y, r.w, r.h, r.h / 2);
   if (style === "light") {
@@ -25,7 +25,7 @@ export function button(ctx, r, label, { style = "light", primary = false, disabl
   }
   if (disabled) ctx.globalAlpha = 0.4;
   const color = style === "light" ? (primary ? C.ink : C.paper) : primary ? C.paper : C.ink;
-  spacedText(ctx, label, r.x + r.w / 2, r.y + r.h / 2 + 1, size, 4, { color });
+  spacedText(ctx, label, r.x + r.w / 2, r.y + r.h / 2 + 1, size, spacing, { color });
   ctx.restore();
 }
 

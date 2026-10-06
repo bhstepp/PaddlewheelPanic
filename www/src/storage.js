@@ -75,7 +75,7 @@ export function recordDaily(date, score) {
     // Keep only the last two weeks of daily results.
     const keys = Object.keys(progress.daily).sort();
     while (keys.length > 14) delete progress.daily[keys.shift()];
-    progress.daily[date] = { notes: score.notes, timeSec: score.timeSec, won: score.won };
+    progress.daily[date] = { notes: score.notes, timeSec: score.timeSec, won: score.won, stars: score.stars ?? 0 };
     persist();
   }
   return better;

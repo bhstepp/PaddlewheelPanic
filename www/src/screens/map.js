@@ -485,3 +485,8 @@ export function mapTap(x, y) {
   }
   return null;
 }
+
+// A zone's little map illustration, for lobby cards in the booth.
+export function zoneVignette(ctx, zi, x, y) {
+  [vRiver, vMountains, vHaunted, vStudio, vPark][zi](ctx, x, y, rng(zi + 1));
+}

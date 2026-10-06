@@ -1,8 +1,18 @@
 <!doctype html><meta charset="utf-8"><body style="margin:0;background:#171614">
 <canvas id="c" width="1280" height="720"></canvas>
 <script type="module">
-import { drawResult } from "../www/src/ui.js";
+// Intertitle cards for art review.
+//   ?card=result (default) | intro      &level=2-3
+import { drawResultCard, drawIntro } from "../www/src/screens/cards.js";
+import { levelDef } from "../www/src/levels/index.js";
+import { zoneOf } from "../www/src/zones/index.js";
+const q = new URLSearchParams(location.search);
 const ctx = document.getElementById("c").getContext("2d");
-const r = { won: true, stars: 2, notes: 88, collected: 74, bonus: 14, totalNotes: 91, ratio: 74/91, clean: false, distanceFt: 1460, progress: 1, timeSec: 66.4 };
-drawResult(ctx, r, { stars: 2, notes: 88, timeSec: 66.4 }, true, 3);
+const id = q.get("level") || "1-1";
+if (q.get("card") === "intro") {
+  drawIntro(ctx, levelDef(id), zoneOf(id), { done: true, stars: 2, notes: 88, timeSec: 66.4, reel: false }, 1, { ghost: [0] });
+} else {
+  const r = { won: true, stars: 2, notes: 88, collected: 74, bonus: 14, bestCombo: 6, totalNotes: 91, ratio: 74 / 91, clean: false, distanceFt: 1460, progress: 1, timeSec: 66.4, reel: true, reelNew: true };
+  drawResultCard(ctx, r, { done: true, stars: 2, notes: 88, timeSec: 66.4 }, true, 3, true);
+}
 </script>

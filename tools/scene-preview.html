@@ -1,22 +1,37 @@
 <!doctype html><meta charset="utf-8"><body style="margin:0;background:#171614">
 <canvas id="c" width="1280" height="720"></canvas>
 <script type="module">
-// Renders the world at a chosen spot for art review: ?x=8200&meter=60&t=1.5
+// Renders the world at a chosen spot for art review.
+//   ?level=1-2&x=8200&meter=60&t=1.5
+//   ?chunks=[["start"],["hookSwing"]]&zone=mountains&x=900
+// Options: jump=1 (jump shortly before the capture), whistle=1, hold=1
+// (keep the jump held, e.g. to grab a hook), power=drum (give a power-up).
 import { Game } from "../www/src/game.js";
 import { drawHUD, drawHint } from "../www/src/ui.js";
 import { drawFilm } from "../www/src/art/film.js";
-import leg1 from "../www/src/levels/leg1.js";
+import { levelDef } from "../www/src/levels/index.js";
+import { ZONES } from "../www/src/zones/index.js";
 const q = new URLSearchParams(location.search);
 const ctx = document.getElementById("c").getContext("2d");
-const g = new Game(leg1, { sfx(){}, haptic(){}, musicTime(){return 0}, win(){}, lose(){} });
+const g = new Game({ sfx(){}, haptic(){}, musicTime(){ return 0; }, win(){}, lose(){} });
+const def = q.get("chunks") ? { id: "preview", name: "Preview", seed: +(q.get("seed") || 1), chunks: JSON.parse(q.get("chunks")) } : levelDef(q.get("level") || "1-1");
+const zone = ZONES.find((z) => z.id === (q.get("zone") || "river"));
+g.load(def, q.get("chunks") || q.get("zone") ? { zone } : {});
 const x = +(q.get("x") || 300);
-const p = g.level.platforms.filter(p => p.type === "dock" && p.x <= x).pop();
-g.hero.x = x; g.hero.y = p.y; g.hero.ground = p; g.camX = x - 1280/3;
+const p = g.level.platforms.filter((p) => p.type === "dock" && p.x <= x).pop();
+g.hero.x = Math.min(x, p.x + p.w - 20); g.hero.y = p.y; g.hero.ground = p; g.camX = g.hero.x - 1280 / 3;
 g.meter = +(q.get("meter") || 20);
+if (q.get("power")) g.hero.power = { kind: q.get("power"), t: 9, uses: 3 };
 const steps = Math.round(+(q.get("t") || 0.6) * 120);
-for (let i = 0; i < steps; i++) { g.setMusicTime(i/120); g.step(1/120, false); if (q.get("jump") && i === steps - 30) g.press(); if (q.get("whistle") && i === steps - 40) g.whistle(); }
+for (let i = 0; i < steps; i++) {
+  g.setMusicTime(i / 120);
+  if (q.get("jump") && i === Math.max(0, steps - (+q.get("jumpAt") || 30))) g.press();
+  if (q.get("whistle") && i === steps - 40) g.whistle();
+  g.step(1 / 120, !!q.get("hold"));
+}
 g.draw(ctx);
 drawHint(ctx, g.hint, true);
-drawHUD(ctx, g, {top:0,left:0,right:0,bottom:0});
-drawFilm(ctx, 1/60);
+drawHUD(ctx, g, { top: 0, left: 0, right: 0, bottom: 0 });
+drawFilm(ctx, 1 / 60);
+window.done = true;
 </script>

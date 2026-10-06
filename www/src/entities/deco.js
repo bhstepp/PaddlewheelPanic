@@ -6,6 +6,8 @@ import { rng, cached, wash, woodGrain } from "../art/ink.js";
 import { gull } from "../art/scenery.js";
 
 const TAU = Math.PI * 2;
+// Perched birds that take off as the hero runs past.
+const BIRDS = new Set(["gull", "crow", "pigeon", "bat"]);
 
 function stroke(ctx, color, w) {
   ctx.strokeStyle = color;
@@ -28,11 +30,11 @@ export class Deco {
   }
 
   get w() {
-    return { lamp: 120, lifering: 60, coil: 60, stack: 140, shed: 300, gull: 40 }[this.kind] ?? 80;
+    return { lamp: 120, lifering: 60, coil: 60, stack: 140, shed: 300, gull: 40, crow: 40, pigeon: 40, bat: 40 }[this.kind] ?? 300;
   }
 
   update(dt, g) {
-    if (this.kind !== "gull") return;
+    if (!BIRDS.has(this.kind)) return;
     if (!this.fly && g.hero.x > this.x - 230 && g.hero.x < this.x + 60) {
       this.fly = 0.0001;
       g.hooks.sfx("gull");
@@ -45,6 +47,8 @@ export class Deco {
   }
 
   draw(ctx, g) {
+    const td = g.theme?.decos?.[this.kind];
+    if (td) return td(ctx, this, g);
     const { x, y } = this;
     switch (this.kind) {
       case "lamp": {

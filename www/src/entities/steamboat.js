@@ -24,6 +24,7 @@ export class Steamboat {
     this.smokeT = 0;
     this.tootT = 0;
     this.extra = 0; // extra slide used for the caught animation
+    this.knockT = 0;
   }
 
   reset() {
@@ -31,6 +32,12 @@ export class Steamboat {
     this.smoke = [];
     this.tootT = 0;
     this.extra = 0;
+    this.knockT = 0;
+  }
+
+  // Hit by cargo from a boss-chase switch: falls back for a moment.
+  knock() {
+    this.knockT = 1;
   }
 
   toot() {
@@ -39,7 +46,8 @@ export class Steamboat {
 
   update(dt, meter, time, beat) {
     const target =
-      CONFIG.boatBowMin + (CONFIG.boatBowMax - CONFIG.boatBowMin) * Math.min(1, meter / 100) + this.extra;
+      CONFIG.boatBowMin + (CONFIG.boatBowMax - CONFIG.boatBowMin) * Math.min(1, meter / 100) + this.extra - this.knockT * 260;
+    this.knockT = Math.max(0, this.knockT - dt * 0.7);
     this.bow += (target - this.bow) * Math.min(1, dt * 3);
     this.wheel += dt * 3.2;
     this.tootT = Math.max(0, this.tootT - dt);

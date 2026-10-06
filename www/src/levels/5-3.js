@@ -1,0 +1,25 @@
+// Level 5-3 · The Grand Finale: one last chase on the big coaster.
+export default {
+  id: "5-3",
+  name: "The Grand Finale",
+  seed: 503,
+  boss: true,
+  chunks: [
+    ["start"],
+    ["hint", 0, { text: "SWIPE UP AT LEVERS TO SLOW THE CAPTAIN", desktop: "PRESS W AT LEVERS TO SLOW THE CAPTAIN" }],
+    ["bossSwitch", 0.4],
+    ["balloonHop", 0.7],
+    ["hookChain", 0.8],
+    ["bossSwitch", 0.6],
+    ["beatSteps", 0.9],
+    ["tromboneGap"],
+    ["reelHook"],
+    ["springWall", 0.8],
+    ["bossSwitch", 0.8],
+    ["crumbleRun", 1],
+    ["balloonHop", 1],
+    ["bossSwitch", 1],
+    ["hookChain", 1],
+    ["ghostHall", 1],
+  ],
+};

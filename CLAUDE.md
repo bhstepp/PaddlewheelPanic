@@ -7,7 +7,8 @@ Key rules:
 - Everything the game needs lives in `www/`, with relative paths. No build step, no npm packages at runtime, no network requests.
 - Canvas 2D, drawn in code. Only the six palette colors in `www/src/art/palette.js`.
 - All tunable numbers live in `www/src/config.js`. Platform-specific behavior goes through `www/src/platform.js`.
-- Levels are plain data in `www/src/levels/`.
+- Levels are plain data in `www/src/levels/`: hand-placed objects or a chunk list. After changing levels, chunks, physics or tuning, run `tools/level-check.html`; every level must still be won.
+- Each zone's scenery, prop skins, decorations and Captain vehicle live in `www/src/art/themes/<zone>.js`.
 
 ## Hero art
 
@@ -22,7 +23,9 @@ The character's name and likeness are still trademarks. Never put the character'
 ```sh
 python3 -m http.server 8123
 # http://localhost:8123/tools/art-preview.html     hero poses
-# http://localhost:8123/tools/scene-preview.html?x=8000&meter=60
-# http://localhost:8123/tools/card-preview.html    win card
+# http://localhost:8123/tools/scene-preview.html?level=3-2&x=8000&meter=60
+# http://localhost:8123/tools/scene-preview.html?chunks=[["start"],["hookSwing"]]&zone=park
+# http://localhost:8123/tools/card-preview.html?card=intro&level=2-3
+# http://localhost:8123/tools/level-check.html     bot plays every level + dailies
 node tools/make-icons.cjs                         # regenerate www/icons (needs Playwright)
 ```

@@ -47,6 +47,35 @@ export const CONFIG = {
   critterBounceVelocity: 980,
   critterRadius: 19,
 
+  // Swinging from hooks (hold to grab, release to fling).
+  hookReach: 200,
+  hookMinLength: 100,
+  hookMaxLength: 190,
+  hookMinOmega: 2.6,
+  hookPump: 0.35,
+  hookAutoRelease: 1.15,
+  hookMaxTime: 2.4,
+  boostDecay: 0.6,
+
+  // Springs, balloons and crumbling ledges.
+  springVelocity: 1150,
+  balloonVelocity: 940,
+  crumbleDelay: 0.6,
+
+  // Instrument power-ups.
+  powerTime: { trombone: 9, drum: 12, tuba: 20, washboard: 5 },
+  drumUses: 3,
+  drumRadius: 640,
+  dashMultiplier: 1.4,
+  glideGravity: 0.16,
+  glideMaxFall: 130,
+
+  // Rhythm combo: chained on-beat landings.
+  comboMax: 8,
+
+  // Boss chase levels: the Captain gains steadily; switches knock him back.
+  boss: { meterStart: 30, meterRise: 0.8, switchKnock: 25 },
+
   // Captain meter (percent).
   meterStart: 20,
   meterDrainPerSec: 1.2,

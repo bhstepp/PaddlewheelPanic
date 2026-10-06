@@ -1,4 +1,4 @@
-// Loads level data and spawns entities.
+// Loads level data (hand-placed objects or a chunk list) and spawns entities.
 import { Dock } from "./entities/dock.js";
 import { Crate } from "./entities/crate.js";
 import { Barrel } from "./entities/barrel.js";
@@ -6,26 +6,56 @@ import { Raft } from "./entities/raft.js";
 import { Critter } from "./entities/critter.js";
 import { Note } from "./entities/note.js";
 import { Deco } from "./entities/deco.js";
+import { Spring, Crumble, BeatPlatform, Lift, Balloon, Hook, Power, Reel, Switch, Ghost } from "./entities/mechanics.js";
+import { buildFromChunks } from "./levels/chunks.js";
+import { rng } from "./art/ink.js";
 
-const PLATFORMS = { dock: Dock, crate: Crate, barrel: Barrel, raft: Raft };
+const PLATFORMS = { dock: Dock, crate: Crate, barrel: Barrel, raft: Raft, spring: Spring, crumble: Crumble, beat: BeatPlatform, lift: Lift, balloon: Balloon };
+const PX_PER_FT = 12;
 
-export function loadLevel(data) {
+// Turn a level definition into plain objects plus the landing x.
+export function expandLevel(def, theme, opts = {}) {
+  if (def.chunks) {
+    const { objects, landingX } = buildFromChunks(def.chunks, rng(def.seed ?? 1), theme, opts);
+    return { objects, landingX };
+  }
+  return { objects: def.objects, landingX: def.landing.x };
+}
+
+export function loadLevel(def, theme, opts = {}) {
+  const { objects, landingX } = expandLevel(def, theme, opts);
   const level = {
-    name: data.name,
-    bpm: data.bpm,
-    landing: data.landing,
-    pxPerFt: data.landing.x / data.lengthFt,
+    id: def.id,
+    name: def.name,
+    boss: !!def.boss,
+    landing: { x: landingX },
+    pxPerFt: PX_PER_FT,
+    lengthFt: Math.round(landingX / PX_PER_FT),
     platforms: [],
     critters: [],
-    decos: [],
     notes: [],
     hints: [],
+    decos: [],
+    hooks: [],
+    powers: [],
+    reels: [],
+    switches: [],
   };
-  for (const o of data.objects) {
+  for (const o of objects) {
     if (PLATFORMS[o.type]) {
       level.platforms.push(new PLATFORMS[o.type](o));
     } else if (o.type === "critter") {
       level.critters.push(new Critter(o));
+    } else if (o.type === "ghost") {
+      level.critters.push(new Ghost(o));
+    } else if (o.type === "hook") {
+      level.hooks.push(new Hook(o));
+    } else if (o.type === "power") {
+      level.powers.push(new Power(o));
+    } else if (o.type === "reel") {
+      level.reels.push(new Reel(o));
+    } else if (o.type === "switch") {
+      level.switches.push(new Switch(o));
     } else if (o.type === "deco") {
       level.decos.push(new Deco(o));
     } else if (o.type === "note") {
@@ -42,7 +72,7 @@ export function loadLevel(data) {
     }
   }
   // Draw order: docks behind crates; moving things on top.
-  const order = { dock: 0, raft: 1, barrel: 2, crate: 3 };
-  level.platforms.sort((a, b) => order[a.type] - order[b.type]);
+  const order = { dock: 0, crumble: 0, lift: 1, raft: 1, beat: 1, barrel: 2, crate: 3, spring: 4, balloon: 4 };
+  level.platforms.sort((a, b) => (order[a.type] ?? 4) - (order[b.type] ?? 4));
   return level;
 }

@@ -27,7 +27,7 @@ export class FX {
     this.rings.push({ x, y: CONFIG.waterY + 6, r: 10, life: 0, max: 0.7, kind: "ripple" });
   }
 
-  splinters(x, y) {
+  splinters(x, y, quiet = false) {
     for (let i = 0; i < 14; i++) {
       this.parts.push({
         kind: "splinter", x, y, vx: (Math.random() - 0.5) * 520, vy: -200 - Math.random() * 380,
@@ -35,7 +35,30 @@ export class FX {
         life: 0, max: 1.1, g: 1500,
       });
     }
-    this.pop(x, y - 30, "POP!");
+    if (!quiet) this.pop(x, y - 30, "POP!");
+  }
+
+  debris(x, y) {
+    for (let i = 0; i < 16; i++) {
+      this.parts.push({
+        kind: "rock", x: x + (Math.random() - 0.5) * 60, y, vx: (Math.random() - 0.5) * 360, vy: -150 - Math.random() * 300,
+        r: 4 + Math.random() * 8, rot: Math.random() * TAU, vr: (Math.random() - 0.5) * 12, life: 0, max: 1.2, g: 1600,
+      });
+    }
+    this.dust(x, y);
+  }
+
+  shockwave(x, y) {
+    this.rings.push({ x, y, r: 20, life: 0, max: 0.6, kind: "shock" });
+    this.rings.push({ x, y, r: 10, life: -0.08, max: 0.6, kind: "shock" });
+  }
+
+  bubble(x, y) {
+    this.rings.push({ x, y, r: 60, life: 0, max: 0.9, kind: "bubble" });
+  }
+
+  glideTrail(x, y) {
+    if (Math.random() < 0.3) this.parts.push({ kind: "dust", x: x - 20, y, vx: -60, vy: 20, r: 3, life: 0, max: 0.5, g: 0 });
   }
 
   dust(x, y) {
@@ -83,7 +106,18 @@ export class FX {
 
   draw(ctx) {
     for (const r of this.rings) {
+      if (r.life < 0) continue;
       const k = r.life / r.max;
+      if (r.kind === "shock" || r.kind === "bubble") {
+        ctx.globalAlpha = 1 - k;
+        ctx.strokeStyle = r.kind === "shock" ? C.ink : C.paper;
+        ctx.lineWidth = r.kind === "shock" ? 5 : 4;
+        ctx.beginPath();
+        if (r.kind === "shock") ctx.ellipse(r.x, r.y, r.r + k * 520, 20 + k * 90, 0, 0, TAU);
+        else ctx.arc(r.x, r.y - k * 40, r.r * (0.8 + k * 0.4), 0, TAU);
+        ctx.stroke();
+        continue;
+      }
       ctx.globalAlpha = 1 - k;
       ctx.strokeStyle = r.kind === "whistle" ? C.ink : C.paper;
       ctx.lineWidth = r.kind === "whistle" ? 4 : 3;
@@ -114,6 +148,22 @@ export class FX {
         ctx.lineWidth = 2;
         ctx.strokeStyle = C.ink;
         ctx.stroke();
+      } else if (p.kind === "rock") {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.beginPath();
+        ctx.moveTo(-p.r, 0);
+        ctx.lineTo(-p.r * 0.3, -p.r * 0.8);
+        ctx.lineTo(p.r * 0.8, -p.r * 0.4);
+        ctx.lineTo(p.r * 0.6, p.r * 0.6);
+        ctx.closePath();
+        ctx.fillStyle = C.ash;
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = C.ink;
+        ctx.stroke();
+        ctx.restore();
       } else if (p.kind === "splinter") {
         ctx.save();
         ctx.translate(p.x, p.y);

@@ -4,6 +4,7 @@ import { PALETTE as C, SERIF } from "./art/palette.js";
 import { TAU, roundRect, spacedText, star, noteGlyph } from "./art/draw.js";
 import { drawHero } from "./art/hero.js";
 import { drawBackground } from "./art/scenery.js";
+import { instrument } from "./entities/mechanics.js";
 import { CONFIG } from "./config.js";
 
 const W = CONFIG.width;
@@ -84,14 +85,14 @@ function blink(t) {
 
 // ---------------------------------------------------------------- title
 
-export function drawTitle(ctx, t, beat, best) {
+export function drawTitle(ctx, t, beat, stats) {
   ctx.fillStyle = C.ink;
   ctx.fillRect(0, 0, W, H);
   ornateFrame(ctx, 40, 36, W - 80, H - 72);
 
   spacedText(ctx, "PADDLEWHEEL PANIC", W / 2, 168, 78, 9);
   divider(ctx, W / 2, 230, 240);
-  spacedText(ctx, "Leg 1 · The Levee", W / 2, 272, 32, 2, { italic: true, weight: "normal" });
+  spacedText(ctx, "A River Journey in Five Reels", W / 2, 272, 32, 2, { italic: true, weight: "normal" });
 
   // An iris opening onto a miniature of the levee, with the hero dancing.
   ctx.save();
@@ -124,8 +125,8 @@ export function drawTitle(ctx, t, beat, best) {
   ctx.globalAlpha = blink(t);
   spacedText(ctx, "TAP TO START", W / 2, 600, 34, 8);
   ctx.globalAlpha = 1;
-  if (best) {
-    spacedText(ctx, `BEST  ${starText(best.stars)}  ·  ${best.notes} NOTES`, W / 2, 646, 18, 4, { color: C.ash, weight: "normal" });
+  if (stats && stats.stars > 0) {
+    spacedText(ctx, `\u2605 ${stats.stars} / 45  ·  REELS ${stats.reels} / 15`, W / 2, 646, 18, 4, { color: C.ash, weight: "normal" });
   }
 }
 
@@ -175,6 +176,34 @@ export function drawHUD(ctx, game, safe) {
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
   ctx.fillText(`× ${game.notes + game.bonus}`, lx + 62, iy + 2);
+
+  // Beat combo.
+  let row = top + 66;
+  if (game.combo >= 2) {
+    pill(ctx, lx, row, 132, 40);
+    spacedText(ctx, `\u266A \u00D7${game.combo}`, lx + 66, row + 21, 22, 3);
+    row += 48;
+  }
+  // Active instrument with its remaining time.
+  const pw = h.power;
+  if (pw) {
+    pill(ctx, lx, row, 176, 48);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(lx + 26, row + 24, 18, 0, TAU);
+    ctx.fillStyle = C.paper;
+    ctx.fill();
+    ctx.restore();
+    instrument(ctx, pw.kind, lx + 26, row + 25, 0.62);
+    const k = Math.max(0, pw.t / CONFIG.powerTime[pw.kind]);
+    roundRect(ctx, lx + 54, row + 18, 100, 12, 6);
+    ctx.fillStyle = C.ink;
+    ctx.fill();
+    roundRect(ctx, lx + 54, row + 18, Math.max(12, 100 * k), 12, 6);
+    ctx.fillStyle = C.paper;
+    ctx.fill();
+    if (pw.kind === "drum") spacedText(ctx, `\u00D7${pw.uses}`, lx + 164, row + 25, 16, 1, { align: "right" });
+  }
 
   // Distance.
   const dist = `${game.distanceFt} FT`;
@@ -229,8 +258,12 @@ export function drawHint(ctx, hintState, coarse) {
   const text = coarse ? hintState.hint.text : hintState.hint.desktop;
   ctx.save();
   ctx.globalAlpha = a;
+  // Long hints shrink to fit the screen.
   ctx.font = `bold 30px ${SERIF}`;
-  const tw = ctx.measureText(text).width + text.length * 4;
+  const full = ctx.measureText(text).width + text.length * 4;
+  const k = Math.min(1, (W - 200) / full);
+  const size = 30 * k;
+  const tw = full * k;
   const w = tw + 110;
   const x = W / 2 - w / 2;
   const y = 120;
@@ -245,20 +278,21 @@ export function drawHint(ctx, hintState, coarse) {
   ctx.stroke();
   diamond(ctx, x + 30, y + 38, 6);
   diamond(ctx, x + w - 30, y + 38, 6);
-  spacedText(ctx, text, W / 2, y + 40, 30, 4);
+  spacedText(ctx, text, W / 2, y + 40, size, 4 * k);
   ctx.restore();
 }
 
 // ---------------------------------------------------------------- pause
 
 const PAUSE_BUTTONS = [
-  { id: "resume", y: 300 },
-  { id: "sound", y: 380 },
-  { id: "restart", y: 460 },
+  { id: "resume", y: 270 },
+  { id: "sound", y: 342 },
+  { id: "restart", y: 414 },
+  { id: "map", y: 486 },
 ];
 
 export function pauseButtons() {
-  return PAUSE_BUTTONS.map((b) => ({ id: b.id, x: W / 2 - 170, y: b.y, w: 340, h: 60 }));
+  return PAUSE_BUTTONS.map((b) => ({ id: b.id, x: W / 2 - 170, y: b.y, w: 340, h: 56 }));
 }
 
 export function drawPause(ctx, muted) {
@@ -267,71 +301,17 @@ export function drawPause(ctx, muted) {
   ctx.fillRect(0, 0, W, H);
   ctx.globalAlpha = 1;
   ctx.fillStyle = C.ink;
-  roundRect(ctx, W / 2 - 300, 110, 600, 480, 12);
+  roundRect(ctx, W / 2 - 300, 90, 600, 530, 12);
   ctx.fill();
-  ornateFrame(ctx, W / 2 - 300, 110, 600, 480);
-  spacedText(ctx, "INTERMISSION", W / 2, 200, 44, 8);
-  divider(ctx, W / 2, 248, 150);
-  const labels = { resume: "RESUME", sound: muted ? "SOUND: OFF" : "SOUND: ON", restart: "RESTART" };
+  ornateFrame(ctx, W / 2 - 300, 90, 600, 530);
+  spacedText(ctx, "INTERMISSION", W / 2, 168, 44, 8);
+  divider(ctx, W / 2, 216, 150);
+  const labels = { resume: "RESUME", sound: muted ? "SOUND: OFF" : "SOUND: ON", restart: "RESTART", map: "MAP" };
   for (const b of pauseButtons()) {
     roundRect(ctx, b.x, b.y, b.w, b.h, 30);
     ctx.lineWidth = 3;
     ctx.strokeStyle = C.paper;
     ctx.stroke();
     spacedText(ctx, labels[b.id], W / 2, b.y + 31, 26, 4);
-  }
-}
-
-// ---------------------------------------------------------------- results
-
-export function drawResult(ctx, r, best, isNewBest, t) {
-  ctx.fillStyle = C.ink;
-  ctx.fillRect(0, 0, W, H);
-  ornateFrame(ctx, 40, 36, W - 80, H - 72);
-
-  const title = r.won ? "You made the landing!" : "The Captain caught you!";
-  ctx.font = `italic bold 58px ${SERIF}`;
-  ctx.fillStyle = C.paper;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(title, W / 2, 140);
-  divider(ctx, W / 2, 196, 220);
-
-  if (r.won) {
-    const earned = [true, r.ratio >= 0.8, r.clean];
-    for (let i = 0; i < 3; i++) {
-      const pop = Math.min(1, Math.max(0, (t - 0.3 - i * 0.35) * 4));
-      const filled = earned[i] && pop > 0;
-      const s = filled ? 0.6 + pop * 0.4 + Math.sin(Math.min(1, pop) * Math.PI) * 0.25 : 1;
-      star(ctx, W / 2 + (i - 1) * 200, 272, 40 * s, filled, 4);
-    }
-    const labels = ["Reached the landing", "80% of the notes", "No spills, no bumps"];
-    labels.forEach((l, i) => {
-      ctx.font = `italic 17px ${SERIF}`;
-      ctx.fillStyle = earned[i] ? C.paper : C.ash;
-      ctx.fillText(l, W / 2 + (i - 1) * 200, 330);
-    });
-  } else {
-    spacedText(ctx, `${r.distanceFt} FT DOWNRIVER`, W / 2, 280, 36, 6);
-    const line = r.progress > 0.75 ? "So close to the landing…" : r.progress > 0.4 ? "Halfway down the river. Keep at it!" : "The river is long. Try again!";
-    spacedText(ctx, line, W / 2, 326, 22, 1, { italic: true, weight: "normal", color: C.silver });
-  }
-
-  spacedText(ctx, `NOTES  ${r.collected} OF ${r.totalNotes}`, W / 2, 392, 26, 4);
-  const extra = r.bonus > 0 ? `+${r.bonus} ON THE BEAT  ·  ` : "";
-  spacedText(ctx, `${extra}TIME ${r.timeSec.toFixed(1)} S`, W / 2, 432, 20, 3, { color: C.silver, weight: "normal" });
-
-  if (best) {
-    const label = isNewBest ? "NEW BEST!" : "BEST";
-    spacedText(ctx, `${label}  ${starText(best.stars)}  ·  ${best.notes} NOTES  ·  ${best.timeSec.toFixed(1)} S`, W / 2, 492, 20, 3, {
-      color: isNewBest ? C.paper : C.ash,
-      weight: isNewBest ? "bold" : "normal",
-    });
-  }
-
-  if (t > 0.8) {
-    ctx.globalAlpha = blink(t);
-    spacedText(ctx, "TAP TO PLAY AGAIN", W / 2, 590, 32, 7);
-    ctx.globalAlpha = 1;
   }
 }

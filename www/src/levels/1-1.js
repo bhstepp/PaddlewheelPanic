@@ -1,11 +1,11 @@
-// Leg 1 · The Levee. Plain data: new legs are new files shaped like this.
+// Level 1-1 · The Levee. Hand-placed plain data (other levels use chunks;
+// see levels/chunks.js).
 // Coordinates are logical pixels. Docks and rafts give their top surface y.
 // Crates and critters give the surface they sit on (y) and stack upward.
 // "notes" places a row (h: 0) or an arc of notes from x to x + w.
 export default {
-  name: "Leg 1 · The Levee",
-  lengthFt: 1460,
-  bpm: 120,
+  id: "1-1",
+  name: "The Levee",
   objects: [
     // 1. Warm-up: long docks, short gaps, a trail of notes teaching the jump.
     { type: "dock", x: 0, y: 520, w: 900 },
@@ -60,6 +60,8 @@ export default {
     { type: "crate", x: 8980, y: 520, w: 80, h: 80 },
     { type: "critter", x: 9020, y: 440 },
     { type: "critter", x: 9380, y: 520 },
+    // The hidden film reel: whistle, then bounce off the flipped critter.
+    { type: "reel", x: 9490, y: 250 },
     { type: "notes", x: 9520, y: 430, w: 200, h: 110, count: 4 },
     { type: "barrel", x: 9700, y: 540, bob: 12 },
     { type: "barrel", x: 9910, y: 540, bob: 14 },

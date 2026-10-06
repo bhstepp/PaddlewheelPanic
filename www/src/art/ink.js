@@ -112,28 +112,28 @@ export function brush(ctx, pts, r, { w = 3, color = C.ink, amp = 0.8, taper = 1 
   ctx.fill();
 }
 
-// Parallel hatching inside the current clip region (call between save/clip/restore).
-export function hatch(ctx, x, y, w, h, r, { angle = -0.9, gap = 6, lw = 1.2, color = C.ink, density = 1, amp = 0.8 } = {}) {
-  const ca = Math.cos(angle);
-  const sa = Math.sin(angle);
-  const diag = Math.hypot(w, h);
+// Soft tonal shading inside the current clip region. (This used to draw
+// hatch lines; the storybook style uses watercolor-like washes instead.)
+// The wash fades in along the hatch angle so shapes keep a sense of form.
+export function hatch(ctx, x, y, w, h, r, { angle = -0.9, color = C.ink, density = 1, gap = 6 } = {}) {
+  const ca = Math.cos(angle + Math.PI / 2);
+  const sa = Math.sin(angle + Math.PI / 2);
   const cx = x + w / 2;
   const cy = y + h / 2;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = lw;
-  ctx.beginPath();
-  for (let d = -diag / 2; d <= diag / 2; d += gap) {
-    if (r() > density) continue;
-    const s0 = -diag / 2 + r() * diag * 0.15;
-    const s1 = diag / 2 - r() * diag * 0.15;
-    const ox = cx - sa * d;
-    const oy = cy + ca * d;
-    const a = [ox + ca * s0, oy + sa * s0];
-    const b = [ox + ca * s1, oy + sa * s1];
-    ctx.moveTo(a[0] + (r() - 0.5) * amp, a[1] + (r() - 0.5) * amp);
-    ctx.quadraticCurveTo((a[0] + b[0]) / 2 + (r() - 0.5) * amp * 2, (a[1] + b[1]) / 2 + (r() - 0.5) * amp * 2, b[0], b[1]);
-  }
-  ctx.stroke();
+  const d = Math.hypot(w, h) / 2;
+  const g = ctx.createLinearGradient(cx - ca * d, cy - sa * d, cx + ca * d, cy + sa * d);
+  const a = Math.min(0.6, 0.32 * density * (6 / Math.max(2.5, gap)) ** 0.5);
+  g.addColorStop(0, hexA(color, a * 0.55));
+  g.addColorStop(1, hexA(color, a));
+  ctx.save();
+  ctx.fillStyle = g;
+  ctx.fillRect(x, y, w, h);
+  ctx.restore();
+}
+
+function hexA(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a.toFixed(3)})`;
 }
 
 // Fill a path, hatch its shadow side, then ink its outline.
@@ -251,7 +251,58 @@ export function cached(key, w, h, paint, max = 48) {
   }
   e = makeLayer(w, h, layerRes());
   paint(e.ctx, e);
+  e.ctx.setTransform(layerRes(), 0, 0, layerRes(), 0, 0);
+  paperTexture(e.ctx, w, h, rng(key.length * 977 + w), { strength: 1 });
   cache.set(key, e);
   while (cache.size > max) cache.delete(cache.keys().next().value);
   return e;
+}
+
+// Watercolor-style wash: fill a path, then lay a soft darker gradient over one
+// side (dir: "down", "right", "left") instead of hard hatching.
+export function wash(ctx, path, fill, shade, { dir = "down", strength = 0.45, x = 0, y = 0, w = 100, h = 100 } = {}) {
+  ctx.fillStyle = fill;
+  ctx.fill(path);
+  if (!shade) return;
+  let g;
+  if (dir === "down") g = ctx.createLinearGradient(0, y, 0, y + h);
+  else if (dir === "right") g = ctx.createLinearGradient(x, 0, x + w, 0);
+  else g = ctx.createLinearGradient(x + w, 0, x, 0);
+  g.addColorStop(0, "rgba(0,0,0,0)");
+  g.addColorStop(0.45, "rgba(0,0,0,0)");
+  g.addColorStop(1, shade);
+  ctx.save();
+  ctx.clip(path);
+  ctx.globalAlpha = strength;
+  ctx.fillStyle = g;
+  ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
+  ctx.restore();
+}
+
+// Mottled watercolor-paper texture laid over whatever is already painted
+// (only where there is paint), so every layer shares the same paper grain.
+export function paperTexture(ctx, w, h, r, { strength = 1, blot = 1 } = {}) {
+  ctx.save();
+  ctx.globalCompositeOperation = "source-atop";
+  // Soft blotches.
+  for (let i = 0; i < (w * h) / 9000 * blot; i++) {
+    const x = r() * w;
+    const y = r() * h;
+    const rad = 20 + r() * 70;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
+    const dark = r() < 0.55;
+    g.addColorStop(0, dark ? "rgba(23,22,20,0.06)" : "rgba(248,246,240,0.08)");
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.globalAlpha = strength;
+    ctx.fillStyle = g;
+    ctx.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+  }
+  // Fine fibres and speckle.
+  ctx.globalAlpha = 0.08 * strength;
+  ctx.fillStyle = C.ink;
+  for (let i = 0; i < (w * h) / 220; i++) ctx.fillRect(r() * w, r() * h, 1, 1);
+  ctx.fillStyle = C.paper;
+  ctx.globalAlpha = 0.12 * strength;
+  for (let i = 0; i < (w * h) / 260; i++) ctx.fillRect(r() * w, r() * h, 1, 1);
+  ctx.restore();
 }

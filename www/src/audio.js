@@ -331,6 +331,10 @@ class Audio {
       case "bounce":
         this.tone(bus, "triangle", 300, t, 0.2, 0.4, 3000, 900);
         break;
+      case "gull": // two squawks
+        this.tone(bus, "square", 1400, t, 0.12, 0.06, 2600, 900);
+        this.tone(bus, "square", 1300, t + 0.15, 0.14, 0.05, 2600, 760);
+        break;
       case "toot": // the Captain's steam whistle
         this.tone(bus, "sawtooth", 233, t, 0.55, 0.12, 900);
         this.tone(bus, "sawtooth", 294, t, 0.55, 0.1, 900);

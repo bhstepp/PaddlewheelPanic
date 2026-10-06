@@ -38,7 +38,7 @@ function makeVignette() {
   return c;
 }
 
-export function drawFilm(ctx, dt) {
+export function drawFilm(ctx, dt, filter = "standard") {
   const f = CONFIG.film;
 
   if (f.grain) {

@@ -1,25 +1,37 @@
-// One run of a river leg: world state, rules, and world rendering.
+// One run of a level: world state, rules, and world rendering.
 import { CONFIG } from "./config.js";
 import { loadLevel } from "./level.js";
 import { createHero, stepHero, heroRect, startJump } from "./physics.js";
-import { Steamboat } from "./entities/steamboat.js";
+import { createChaser } from "./entities/chasers.js";
 import { FX } from "./fx.js";
 import { drawHero } from "./art/hero.js";
-import { drawBackground, drawForeground, drawPaperFinish } from "./art/scenery.js";
+import { drawPaperFinish } from "./art/scenery.js";
+import { getTheme } from "./art/themes/index.js";
+import { zoneOf } from "./zones/index.js";
+import { SONGS } from "./music/songs.js";
 
 const W = CONFIG.width;
 
 export class Game {
-  constructor(levelData, hooks) {
-    this.data = levelData;
+  constructor(hooks) {
     this.hooks = hooks; // { sfx(name), haptic(kind), win(result), lose(result), musicTime() }
-    this.boat = new Steamboat();
     this.fx = new FX();
+  }
+
+  // def: a level definition. opts.zone overrides the zone (daily matinee).
+  load(def, opts = {}) {
+    this.def = def;
+    this.mode = opts.mode ?? "level";
+    this.zone = opts.zone ?? zoneOf(def.id);
+    this.theme = getTheme(this.zone.theme);
+    this.songId = this.zone.song;
+    this.bpm = SONGS[this.songId].bpm;
+    this.boat = createChaser(this.theme.chaser);
     this.reset();
   }
 
   reset() {
-    this.level = loadLevel(this.data);
+    this.level = loadLevel(this.def, this.theme);
     const first = this.level.platforms.find((p) => p.type === "dock");
     this.hero = createHero(first.x + 80, first.y);
     this.hero.ground = first;
@@ -48,7 +60,7 @@ export class Game {
 
   // Beat helpers driven by the music clock.
   setMusicTime(t) {
-    const beatLen = 60 / this.level.bpm;
+    const beatLen = 60 / this.bpm;
     const b = t / beatLen;
     this.beatPhase = b - Math.floor(b);
     const k = Math.max(0, 1 - this.beatPhase * 3.5);
@@ -57,7 +69,7 @@ export class Game {
   }
 
   onBeat() {
-    const beatLen = 60 / this.level.bpm;
+    const beatLen = 60 / this.bpm;
     const b = this.musicT / beatLen;
     return Math.abs(b - Math.round(b)) * beatLen <= CONFIG.beatWindow;
   }
@@ -133,9 +145,11 @@ export class Game {
         h.ground = null;
         this.falls++;
         this.addMeter(CONFIG.meterFall);
-        this.fx.splash(h.x, 1.2);
-        this.fx.pop(h.x, CONFIG.waterY - 120, "SPLASH!");
-        this.hooks.sfx("splash");
+        const fall = this.theme.fall;
+        if (fall.fx === "splash") this.fx.splash(h.x, 1.2);
+        else this.fx.dust(h.x, CONFIG.waterY);
+        this.fx.pop(h.x, CONFIG.waterY - 120, fall.text);
+        this.hooks.sfx(fall.fx === "splash" ? "splash" : "hit");
         this.hooks.haptic("heavy");
         this.boat.toot();
         this.hooks.sfx("toot");
@@ -304,7 +318,7 @@ export class Game {
   draw(ctx) {
     const cam = Math.round(this.camX * 2) / 2;
     const L = this.level;
-    drawBackground(ctx, cam, this);
+    this.theme.drawBackground(ctx, cam, this);
 
     ctx.save();
     ctx.translate(-cam, 0);
@@ -349,7 +363,7 @@ export class Game {
     this.fx.draw(ctx);
     ctx.restore();
 
-    drawForeground(ctx, cam, this);
+    this.theme.drawForeground(ctx, cam, this);
     drawPaperFinish(ctx);
   }
 }

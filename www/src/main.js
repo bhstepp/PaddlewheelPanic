@@ -1,14 +1,19 @@
-// Boot, canvas scaling, screens and the fixed-step game loop.
+// Boot, canvas scaling, the screen flow and the fixed-step game loop.
 import { CONFIG } from "./config.js";
 import { PALETTE as C } from "./art/palette.js";
 import { Input } from "./input.js";
 import { audio } from "./audio.js";
 import { platform } from "./platform.js";
-import { initStorage, getBest, recordResult, getSettings, setSetting } from "./storage.js";
+import * as store from "./storage.js";
 import { Game } from "./game.js";
 import { drawFilm } from "./art/film.js";
-import { drawTitle, drawHUD, drawHint, drawPause, drawResult, pauseButtonRect, pauseButtons } from "./ui.js";
-import leg1 from "./levels/leg1.js";
+import { drawTitle, drawHUD, drawHint, drawPause, pauseButtonRect, pauseButtons } from "./ui.js";
+import { levelDef } from "./levels/index.js";
+import { zoneOf, nextLevel } from "./zones/index.js";
+import { drawMap, mapTap, isUnlocked } from "./screens/map.js";
+import { drawIntro, introButtons, drawResultCard, resultButtons } from "./screens/cards.js";
+import { inside } from "./screens/common.js";
+import { extraScreens } from "./screens/extras.js";
 
 const W = CONFIG.width;
 const H = CONFIG.height;
@@ -20,14 +25,19 @@ const safeProbe = document.getElementById("safe-probe");
 
 let view = { scale: 1, left: 0, top: 0, dpr: 1 };
 let safe = { top: 0, right: 0, bottom: 0, left: 0 };
-let screen = "title"; // title | play | paused | result
+// title | map | intro | play | paused | result | (extra screens: booth, daily...)
+let screen = "title";
 let portrait = false;
-let lastResult = null;
-let newBest = false;
 let screenT = 0;
 let acc = 0;
 let last = performance.now();
 let wallT = 0;
+
+// The level being played.
+let current = { id: "1-1", def: null, zone: null, opts: {} };
+let lastResult = null;
+let newBest = false;
+let mapFocus = "1-1";
 
 // ---------------------------------------------------------------- sizing
 
@@ -69,9 +79,9 @@ function toLogical(cx, cy) {
   return { x: (cx - view.left) / view.scale, y: (cy - view.top) / view.scale };
 }
 
-// ---------------------------------------------------------------- game
+// ---------------------------------------------------------------- flow
 
-const game = new Game(leg1, {
+const game = new Game({
   sfx: (n) => audio.sfx(n),
   haptic: (k) => platform.haptic(k),
   musicTime: () => audio.musicTime(),
@@ -79,15 +89,46 @@ const game = new Game(leg1, {
   lose: (r) => finish(r),
 });
 
+function go(next) {
+  screen = next;
+  screenT = 0;
+}
+
+function firstOpenLevel() {
+  let id = "1-1";
+  for (let k = 0; k < 15 && id; k++) {
+    if (!isUnlocked(id)) break;
+    mapFocus = id;
+    if (!store.isDone(id)) break;
+    id = nextLevel(id);
+  }
+  return mapFocus;
+}
+
+function openMap() {
+  audio.stopMusic();
+  if (!mapFocus) firstOpenLevel();
+  go("map");
+}
+
+// Show a level's intro card. opts: { def, zone, mode, kicker, blurb, lines } for
+// non-standard runs such as the daily matinee.
+export function openLevel(id, opts = {}) {
+  const def = opts.def ?? levelDef(id);
+  if (!def) return;
+  current = { id, def, zone: opts.zone ?? zoneOf(id), opts };
+  mapFocus = opts.mode === "daily" ? mapFocus : id;
+  go("intro");
+}
+
 function startRun() {
   audio.unlock();
-  audio.setMuted(getSettings().muted);
+  audio.setMuted(store.getSettings().muted);
   audio.resume();
-  game.reset();
+  game.load(current.def, { zone: current.zone, mode: current.opts.mode ?? "level", ghost: current.opts.ghost });
   input.reset();
-  audio.startMusic(leg1.bpm);
-  screen = "play";
-  screenT = 0;
+  audio.startMusic(current.zone.song);
+  go("play");
   acc = 0;
 }
 
@@ -95,15 +136,20 @@ function finish(r) {
   audio.stopMusic();
   audio.sfx(r.won ? "win" : "lose");
   lastResult = r;
-  newBest = r.won ? recordResult({ stars: r.stars, notes: r.notes, totalNotes: r.totalNotes, timeSec: r.timeSec }) : false;
-  if (r.won) platform.submitScore({ notes: r.notes, timeSec: r.timeSec, stars: r.stars });
-  screen = "result";
-  screenT = 0;
+  if (current.opts.onFinish) {
+    newBest = current.opts.onFinish(r);
+  } else {
+    const hadReel = store.hasReel(current.id);
+    newBest = store.recordLevel(current.id, { won: r.won, stars: r.stars, notes: r.notes, timeSec: r.timeSec, reel: r.reel });
+    r.reelNew = r.reel && !hadReel;
+    if (r.won) platform.submitScore({ board: `level.${current.id}`, value: r.notes, timeSec: r.timeSec, stars: r.stars });
+  }
+  go("result");
 }
 
 function pause() {
   if (screen !== "play") return;
-  screen = "paused";
+  go("paused");
   input.reset();
   audio.suspend();
 }
@@ -116,19 +162,64 @@ function resume() {
   last = performance.now();
 }
 
-const inside = (x, y, r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+function toggleSound() {
+  const m = !store.getSettings().muted;
+  store.setSetting("muted", m);
+  audio.unlock();
+  audio.setMuted(m);
+}
 
-// Taps the UI handles before they can become jumps. Keyboard taps arrive as (-1, -1).
+const hasNext = () => !current.opts.mode && !!nextLevel(current.id) && isUnlocked(nextLevel(current.id));
+
+// Screens added by other modules (booth, daily matinee...).
+const extras = extraScreens({ go, openLevel, openMap, toggleSound, audio, store, getScreenT: () => screenT });
+
+// Taps the UI handles before they can become jumps. Keyboard taps arrive as
+// (-1, -1) for Enter/Space and (-2, -2) for Escape.
 function onScreenTap(x, y) {
   if (portrait) return true;
   const key = x < 0;
+  const esc = x === -2;
   switch (screen) {
     case "title":
-      startRun();
+      if (!esc) openMap();
       return true;
-    case "result":
-      if (screenT > 0.8) startRun();
+    case "map": {
+      if (key) {
+        if (!esc) openLevel(mapFocus);
+        else go("title");
+        return true;
+      }
+      const hit = mapTap(x, y);
+      if (hit?.level) openLevel(hit.level);
+      else if (hit?.button === "sound") toggleSound();
+      else if (hit?.button) extras.open(hit.button);
       return true;
+    }
+    case "intro": {
+      if (key) {
+        if (esc) current.opts.onBack ? current.opts.onBack() : openMap();
+        else startRun();
+        return true;
+      }
+      for (const b of introButtons()) {
+        if (!inside(x, y, b)) continue;
+        if (b.id === "play") startRun();
+        else current.opts.onBack ? current.opts.onBack() : openMap();
+      }
+      return true;
+    }
+    case "result": {
+      if (screenT < 0.6) return true;
+      const bs = resultButtons(lastResult, hasNext());
+      let id = null;
+      if (key) id = esc ? "map" : bs.find((b) => b.primary)?.id;
+      else id = bs.find((b) => inside(x, y, b))?.id;
+      if (id === "next") openLevel(nextLevel(current.id));
+      else if (id === "retry") startRun();
+      else if (id === "map") current.opts.onBack ? current.opts.onBack() : openMap();
+      return true;
+    }
     case "paused": {
       if (key) {
         resume();
@@ -138,11 +229,10 @@ function onScreenTap(x, y) {
         if (!inside(x, y, b)) continue;
         if (b.id === "resume") resume();
         else if (b.id === "restart") startRun();
-        else if (b.id === "sound") {
-          const m = !getSettings().muted;
-          setSetting("muted", m);
-          audio.unlock();
-          audio.setMuted(m);
+        else if (b.id === "sound") toggleSound();
+        else if (b.id === "map") {
+          audio.resume();
+          current.opts.onBack ? current.opts.onBack() : openMap();
         }
       }
       return true;
@@ -157,8 +247,9 @@ function onScreenTap(x, y) {
       }
       return false;
     }
+    default:
+      return extras.tap(screen, x, y);
   }
-  return false;
 }
 
 const input = new Input(canvas, toLogical);
@@ -178,6 +269,7 @@ function frame(now) {
     if (ev === "pause") {
       if (screen === "play") pause();
       else if (screen === "paused") resume();
+      else onScreenTap(-2, -2);
     } else if (screen === "play") {
       if (ev === "jump") game.press();
       else if (ev === "whistle") game.whistle();
@@ -192,8 +284,9 @@ function frame(now) {
       game.step(CONFIG.step, input.held);
       acc -= CONFIG.step;
     }
-  } else if (screen === "title") {
-    game.setMusicTime(wallT);
+  } else {
+    audio.update(dt);
+    extras.update(screen, dt);
   }
 
   render(dt);
@@ -206,17 +299,31 @@ function render(dt) {
   const k = canvas.width / W;
   ctx.setTransform(k, 0, 0, k, 0, 0);
 
-  if (screen === "title") {
-    drawTitle(ctx, wallT, game.beat, getBest());
-  } else if (screen === "result") {
-    drawResult(ctx, lastResult, getBest(), newBest, screenT);
-  } else {
-    game.draw(ctx);
-    drawHint(ctx, game.hint, input.coarse);
-    drawHUD(ctx, game, safe);
-    if (screen === "paused") drawPause(ctx, getSettings().muted);
+  const beat = Math.max(0, 1 - ((wallT * 2) % 1) * 3.5) ** 2;
+  switch (screen) {
+    case "title":
+      drawTitle(ctx, wallT, beat, { stars: store.totalStars(), reels: store.totalReels() });
+      break;
+    case "map":
+      drawMap(ctx, wallT, store.getSettings().muted, mapFocus);
+      break;
+    case "intro":
+      drawIntro(ctx, current.def, current.zone, current.opts.record ?? store.levelRecord(current.id), screenT, current.opts);
+      break;
+    case "result":
+      drawResultCard(ctx, lastResult, current.opts.record ?? store.levelRecord(current.id), newBest, screenT, hasNext());
+      break;
+    case "play":
+    case "paused":
+      game.draw(ctx);
+      drawHint(ctx, game.hint, input.coarse);
+      drawHUD(ctx, game, safe);
+      if (screen === "paused") drawPause(ctx, store.getSettings().muted);
+      break;
+    default:
+      extras.draw(screen, ctx, wallT);
   }
-  drawFilm(ctx, dt);
+  drawFilm(ctx, dt, store.getSettings().filter);
 }
 
 // ---------------------------------------------------------------- boot
@@ -232,7 +339,8 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("resize", resize);
 window.addEventListener("orientationchange", () => setTimeout(resize, 120));
 
-await initStorage();
+await store.initStorage();
+firstOpenLevel();
 resize();
 requestAnimationFrame((t) => {
   last = t;

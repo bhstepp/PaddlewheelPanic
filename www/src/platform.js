@@ -1,9 +1,6 @@
 // Web vs native adapter. Game code never calls browser-only or
 // Capacitor-only APIs directly; everything platform-specific goes here.
 
-const BEST_KEY = "pwp.best.v1";
-const SETTINGS_KEY = "pwp.settings.v1";
-
 function readJSON(key) {
   try {
     const raw = window.localStorage.getItem(key);
@@ -15,9 +12,10 @@ function readJSON(key) {
 
 function writeJSON(key, value) {
   try {
-    window.localStorage.setItem(key, JSON.stringify(value));
+    if (value === null) window.localStorage.removeItem(key);
+    else window.localStorage.setItem(key, JSON.stringify(value));
   } catch {
-    // Storage can be unavailable (private mode); the game still runs.
+    // Storage can be unavailable or full (private mode); the game still runs.
   }
 }
 
@@ -28,22 +26,24 @@ export const platform = {
   // (iPhone Safari has no vibration); the native build wires in haptics.
   haptic(kind) {},
 
+  // Generic persisted values (localStorage on web, Preferences natively).
+  async save(key, data) {
+    writeJSON(`pwp.${key}`, data);
+  },
+
+  async load(key) {
+    return readJSON(`pwp.${key}`);
+  },
+
+  // Kept for the spec's adapter shape: the demo's single best result.
   async saveBest(data) {
-    writeJSON(BEST_KEY, data);
+    writeJSON("pwp.best.v1", data);
   },
 
   async loadBest() {
-    return readJSON(BEST_KEY);
+    return readJSON("pwp.best.v1");
   },
 
-  async saveSettings(data) {
-    writeJSON(SETTINGS_KEY, data);
-  },
-
-  async loadSettings() {
-    return readJSON(SETTINGS_KEY);
-  },
-
-  // No-op on the web; Game Center later.
+  // No-op on the web; Game Center later. score = { board, value, ... }
   submitScore(score) {},
 };

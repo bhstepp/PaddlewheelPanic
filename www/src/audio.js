@@ -1,6 +1,7 @@
-// Web Audio synth: an original ragtime loop ("The Levee Rag") plus sound
+// Web Audio synth: an original song per zone (music/songs.js) plus sound
 // effects. Everything is synthesized; there are no audio files.
 import { CONFIG } from "./config.js";
+import { SONGS, CHORDS } from "./music/songs.js";
 
 const midiHz = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
@@ -13,61 +14,29 @@ function n(name) {
   return v + (Number(m[3]) + 1) * 12;
 }
 
-// Melody bars: [note, eighths]. Each bar is 8 eighths.
-const A1 = [
-  [["E5", 1], ["G5", 2], ["E5", 1], ["C5", 1], ["D5", 1], ["E5", 1], ["G5", 1]],
-  [["A5", 2], ["G5", 1], ["E5", 1], ["G5", 3], ["R", 1]],
-  [["C#5", 1], ["E5", 1], ["A5", 1], ["G5", 2], ["E5", 1], ["C#5", 1], ["E5", 1]],
-  [["G5", 2], ["E5", 1], ["C#5", 1], ["A4", 3], ["R", 1]],
-  [["D5", 1], ["F#5", 1], ["A5", 1], ["F#5", 2], ["D5", 1], ["E5", 1], ["F#5", 1]],
-  [["G5", 1], ["F5", 1], ["D5", 1], ["B4", 2], ["D5", 1], ["F5", 1], ["G5", 1]],
-];
-const A_END1 = [
-  [["E5", 2], ["C5", 1], ["G4", 1], ["C5", 1], ["E5", 1], ["D5", 1], ["C5", 1]],
-  [["B4", 1], ["D5", 1], ["G5", 1], ["F5", 2], ["D5", 1], ["B4", 1], ["G4", 1]],
-];
-const A_END2 = [
-  [["E5", 1], ["D5", 1], ["C5", 2], ["G4", 2], ["C5", 2]],
-  [["C5", 1], ["E5", 1], ["G5", 1], ["C6", 3], ["R", 2]],
-];
-const B = [
-  [["A5", 1], ["C6", 2], ["A5", 1], ["F5", 1], ["G5", 1], ["A5", 1], ["C6", 1]],
-  [["D6", 2], ["C6", 1], ["A5", 1], ["F5", 3], ["R", 1]],
-  [["G5", 1], ["E5", 1], ["C5", 1], ["E5", 2], ["G5", 1], ["E5", 1], ["C5", 1]],
-  [["C#5", 1], ["E5", 1], ["G5", 1], ["A5", 2], ["G5", 1], ["E5", 1], ["C#5", 1]],
-  [["D5", 1], ["F#5", 1], ["A5", 1], ["C6", 2], ["A5", 1], ["F#5", 1], ["D5", 1]],
-  [["G5", 2], ["F5", 1], ["D5", 1], ["B4", 2], ["G4", 2]],
-  [["C5", 1], ["E5", 1], ["G5", 1], ["E5", 2], ["C5", 1], ["D5", 1], ["E5", 1]],
-  [["D5", 1], ["B4", 1], ["G4", 1], ["B4", 2], ["D5", 1], ["F5", 1], ["G5", 1]],
-];
-const MELODY = [...A1, ...A_END1, ...A1, ...A_END2, ...B];
+// Compile a song (see music/songs.js) into a flat list of eighth-note steps.
+function compile(song) {
+  const per = song.meter * 2; // eighths per bar
+  const steps = song.bars.length * per;
+  const lead = new Array(steps).fill(null);
+  song.bars.forEach((bar, b) => {
+    let st = b * per;
+    let used = 0;
+    for (const [name, len] of bar) {
+      const m = n(name);
+      if (m !== null && used + len <= per) lead[st] = { m, len };
+      st += len;
+      used += len;
+    }
+  });
+  return { ...song, per, steps, lead };
+}
 
-const CHORDS = {
-  C: { bass: ["C2", "G2"], stab: ["G3", "C4", "E4"] },
-  F: { bass: ["F2", "C2"], stab: ["A3", "C4", "F4"] },
-  A7: { bass: ["A2", "E2"], stab: ["G3", "C#4", "E4"] },
-  D7: { bass: ["D2", "A2"], stab: ["F#3", "A3", "C4"] },
-  G7: { bass: ["G2", "D2"], stab: ["F3", "G3", "B3"] },
-};
-const A_CH = ["C", "C", "A7", "A7", "D7", "G7"];
-const PROGRESSION = [
-  ...A_CH, "C", "G7",
-  ...A_CH, "C", "C",
-  "F", "F", "C", "A7", "D7", "G7", "C", "G7",
-];
-
-// Flatten into a step list (eighth notes).
-const STEPS_PER_BAR = 8;
-const SONG_STEPS = MELODY.length * STEPS_PER_BAR;
-const LEAD = new Array(SONG_STEPS).fill(null);
-MELODY.forEach((bar, b) => {
-  let s = b * STEPS_PER_BAR;
-  for (const [name, len] of bar) {
-    const m = n(name);
-    if (m !== null) LEAD[s] = { m, len };
-    s += len;
-  }
-});
+const compiled = {};
+function getSong(id) {
+  if (!compiled[id]) compiled[id] = compile(SONGS[id] ?? SONGS.river);
+  return compiled[id];
+}
 
 class Audio {
   constructor() {
@@ -84,6 +53,7 @@ class Audio {
     this.noise = null;
     this.fallbackClock = 0;
     this.bpm = CONFIG.bpm;
+    this.song = getSong("river");
   }
 
   // Called from every tap, click and key press. iOS Safari only lets audio
@@ -173,14 +143,17 @@ class Audio {
     return 60 / this.bpm / 2;
   }
 
-  startMusic(bpm = CONFIG.bpm) {
-    this.bpm = bpm;
+  // Start a zone song from the top. Returns its bpm (beats are quarter notes).
+  startMusic(songId = "river") {
+    this.song = getSong(songId);
+    this.bpm = this.song.bpm;
     this.fallbackClock = 0;
     this.musicOn = true;
-    if (!this.ctx) return;
+    if (!this.ctx) return this.bpm;
     this.musicStart = this.ctx.currentTime + 0.08;
     this.nextTime = this.musicStart;
     this.nextStep = 0;
+    return this.bpm;
   }
 
   stopMusic() {
@@ -208,21 +181,41 @@ class Audio {
     }
     const ahead = now + 0.2;
     while (this.nextTime < ahead) {
-      this.scheduleStep(this.nextStep % SONG_STEPS, this.nextTime);
+      this.scheduleStep(this.nextStep % this.song.steps, this.nextTime);
       this.nextStep++;
       this.nextTime = this.musicStart + this.nextStep * this.stepDur;
     }
   }
 
   scheduleStep(step, t) {
+    const song = this.song;
     const sd = this.stepDur;
-    const bar = Math.floor(step / STEPS_PER_BAR);
-    const inBar = step % STEPS_PER_BAR;
-    const chord = CHORDS[PROGRESSION[bar]];
+    const per = song.per;
+    const bar = Math.floor(step / per);
+    const inBar = step % per;
+    const chord = CHORDS[song.chords[bar % song.chords.length]];
+    const v = song.voice;
 
-    const lead = LEAD[step];
-    if (lead) this.tone(this.musicBus, "square", midiHz(lead.m), t, lead.len * sd * 0.9, 0.11, 2600);
+    const lead = song.lead[step];
+    if (lead) {
+      const f = midiHz(lead.m);
+      const dur = lead.len * sd * (v.staccato ? 0.55 : v.legato ? 1.0 : 0.9);
+      this.voice(v, f, t, dur);
+      if (v.octave) this.tone(this.musicBus, "triangle", f / 2, t, dur, v.gain * 0.8, v.cut);
+    }
 
+    if (song.meter === 3) {
+      // Waltz: bass on 1, chord on 2 and 3.
+      if (inBar === 0) {
+        const b = n(chord.bass[bar % 2 === 0 ? 0 : 1]);
+        this.tone(this.musicBus, "triangle", midiHz(b), t, sd * 1.8, 0.5, 900);
+      }
+      if (inBar === 2 || inBar === 4) {
+        for (const s of chord.stab) this.tone(this.musicBus, "triangle", midiHz(n(s)), t, sd * 0.8, 0.12, 1800);
+      }
+      if (inBar % 2 === 0) this.hit(this.musicBus, t, 0.03, inBar === 0 ? 0.1 : 0.05, 6500, "highpass");
+      return;
+    }
     // Oom (bass on beats 1 and 3) and pah (chord on 2 and 4).
     if (inBar === 0 || inBar === 4) {
       const b = n(chord.bass[inBar === 0 ? 0 : 1]);
@@ -234,6 +227,53 @@ class Audio {
     }
     // Light percussion tick on every eighth.
     this.hit(this.musicBus, t, 0.025, inBar % 2 === 0 ? 0.09 : 0.05, 7000, "highpass");
+  }
+
+  // A lead note with the song's timbre: vibrato (fiddle, theremin) or
+  // tremolo (calliope).
+  voice(v, f, t, dur) {
+    const ctx = this.ctx;
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    const fl = ctx.createBiquadFilter();
+    o.type = v.lead;
+    o.frequency.setValueAtTime(f, t);
+    fl.type = "lowpass";
+    fl.frequency.value = v.cut;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(v.gain, t + (v.legato ? 0.04 : 0.008));
+    g.gain.setValueAtTime(v.gain, t + dur * 0.7);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    const mods = [];
+    if (v.vibrato) {
+      const lfo = ctx.createOscillator();
+      const lg = ctx.createGain();
+      lfo.frequency.value = 5.5;
+      lg.gain.value = v.vibrato;
+      lfo.connect(lg).connect(o.frequency);
+      mods.push(lfo);
+    }
+    let out = g;
+    if (v.tremolo) {
+      const trem = ctx.createGain();
+      trem.gain.value = 0.7;
+      const lfo = ctx.createOscillator();
+      const lg = ctx.createGain();
+      lfo.frequency.value = v.tremolo;
+      lg.gain.value = 0.3;
+      lfo.connect(lg).connect(trem.gain);
+      g.connect(trem);
+      out = trem;
+      mods.push(lfo);
+    }
+    o.connect(fl).connect(g);
+    out.connect(this.musicBus);
+    o.start(t);
+    o.stop(t + dur + 0.05);
+    for (const m of mods) {
+      m.start(t);
+      m.stop(t + dur + 0.05);
+    }
   }
 
   // ---- synth building blocks

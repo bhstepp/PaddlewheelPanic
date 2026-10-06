@@ -22,6 +22,12 @@ export class Dock {
   update() {}
 
   draw(ctx, g) {
+    const sk = g.theme?.skins?.ledge;
+    if (sk) {
+      sk(ctx, this, g);
+      if (this.landing) this.drawFlag(ctx, g);
+      return;
+    }
     const { x, y, w } = this;
     const water = CONFIG.waterY;
     const sh = water + 60 - y + 6;
@@ -59,7 +65,7 @@ export class Dock {
     ctx.font = `bold 21px ${SERIF}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("THE LANDING", 0, 12);
+    ctx.fillText(g.theme?.landingSign ?? "THE LANDING", 0, 12);
     ctx.restore();
     // Pole.
     roundRect(ctx, fx - 6, top, 12, this.y - top + 2, 5);

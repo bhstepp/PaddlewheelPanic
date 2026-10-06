@@ -11,7 +11,7 @@ Key rules:
 
 ## Hero art
 
-The hero's final art is the 1928 riverboat-deckhand design (public domain in the US since January 2024), drawn in `www/src/art/hero.js` behind `drawHero(ctx, state)`. Use only 1928 design traits: pie-cut eyes, long snout, round black ears, bare black hands (no gloves), two-button shorts, thin tail.
+The hero's final art is the 1928 riverboat-deckhand design (public domain in the US since January 2024), drawn in `www/src/art/hero.js` behind `drawHero(ctx, state)`. Use only 1928 design traits: tall white pilot's cap, pie-cut eyes, short upturned snout with a big oval nose, round black ears on the back of the head, big bare black hands (no gloves), light two-button shorts, big light shoes, thin tail.
 
 The character's name and likeness are still trademarks. Never put the character's name, or any Disney name, logo, font, sound or music, in the game title, UI text, file names, page title, metadata, code or comments.
 
